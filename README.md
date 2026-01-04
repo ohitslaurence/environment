@@ -1,6 +1,13 @@
 # Remote Development Environment
 
-Automated setup for a secure Ubuntu 24 VPS development environment. **Tailscale is the only way in.**
+My personal setup for configuring a VPS as a secure remote development environment. The main goal: **persistent Claude Code sessions that survive disconnects**, enabling long-running AI agent workflows without tying up my laptop.
+
+## Why?
+
+- **Offload work from my laptop** - Let heavy AI tasks run on a VPS while I do other things
+- **Persistent sessions** - SSH disconnects? No problem. tmux keeps Claude Code running
+- **Decentralized project storage** - Code lives on the VPS, accessible from anywhere
+- **Secure by default** - Tailscale-only access, no exposed ports, no SSH keys to manage
 
 ## Security Model
 
@@ -10,11 +17,10 @@ Internet ──X──> VPS (all ports blocked)
 Tailnet ────────> VPS (Tailscale SSH only)
 ```
 
-- **No public SSH** - OpenSSH daemon disabled
+- **No public SSH** - OpenSSH disabled entirely
 - **No open ports** - UFW blocks everything except Tailscale
-- **Tailscale SSH** - Authenticate with your identity provider (Google, GitHub, etc.)
-- **Zero key management** - No SSH keys needed
-- **AWS SSO** - Temporary credentials, no long-lived keys on disk
+- **Tailscale SSH** - Authenticate with your identity provider
+- **AWS SSO** - Temporary credentials, nothing long-lived on disk
 
 ## Quick Start
 
@@ -24,143 +30,80 @@ cd ~/dev/environment
 ./setup
 ```
 
-## Interactive CLI
+## Interactive Setup
 
-The `./setup` command launches an interactive menu powered by [gum](https://github.com/charmbracelet/gum):
+The `./setup` command launches an interactive menu (powered by [gum](https://github.com/charmbracelet/gum)):
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║            🖥️  VPS Environment Setup                          ║
 ╚══════════════════════════════════════════════════════════════╝
 
-Current Status:
-
-  ✓ Tailscale SSH - Secure mesh VPN access
-  ✓ UFW Firewall - Lock down to Tailscale only
-  ○ Disable OpenSSH - Remove traditional SSH
-  ○ Base Packages - git, curl, build tools
+  ✓ Tailscale SSH
+  ✓ UFW Firewall
+  ✓ Disable OpenSSH
+  ○ Base Packages
+  ○ Docker
   ...
 
 > Run All Remaining
   Select Steps
   Run Security Analysis
-  Reset State
-  Exit
 ```
 
-**Features:**
-- **Resumable** - Progress saved to `~/.config/vps-setup/state.json`
-- **Checkboxes** - See what's done (✓) vs pending (○)
-- **Selective** - Run individual steps or all remaining
-- **Security analysis** - Check your lockdown status anytime
+Progress is saved - come back anytime and resume where you left off.
 
-## Setup Steps
+## What Gets Installed
 
-| Step | Description |
-|------|-------------|
-| Tailscale SSH | Install Tailscale, enable SSH access |
-| UFW Firewall | Lock firewall to Tailscale interface only |
-| Disable OpenSSH | Remove traditional SSH (Tailscale only) |
-| Base Packages | git, curl, ripgrep, neovim, etc. |
-| Node.js | fnm + Node LTS + pnpm |
-| Bun | Fast JavaScript runtime |
-| Claude Code | AI coding assistant (native install) |
-| tmux | Terminal multiplexer + plugins |
-| zsh | Shell configuration |
-| Dotfiles | Symlink configs via stow |
-| AWS SSO | IAM Identity Center setup |
+| Category | Tools |
+|----------|-------|
+| **Security** | Tailscale SSH, UFW, auto-updates |
+| **Core** | git, curl, build-essential, jq, stow |
+| **Modern CLI** | eza, bat, zoxide, atuin, fzf, direnv |
+| **TUI** | lazygit, lazydocker, htop, neovim |
+| **Runtime** | Docker, Node.js (fnm), Bun, pnpm |
+| **AI** | Claude Code (native install) |
+| **Shell** | zsh, tmux with persistence |
+| **Git** | GPG commit signing, GitHub CLI |
+| **Cloud** | AWS CLI with IAM Identity Center |
 
-## Connecting After Setup
-
-From any device on your Tailnet:
+## The Workflow
 
 ```bash
-ssh username@100.x.x.x          # By Tailscale IP
-ssh username@vps-hostname       # By hostname (MagicDNS)
+# SSH in via Tailscale
+ssh me@100.x.x.x
+
+# Start a persistent session
+tmux new -s agent
+
+# Run Claude Code
+claude
+
+# Detach anytime (Ctrl-a d)
+# Reconnect later
+tmux attach -t agent
 ```
 
-No SSH keys needed.
+Claude keeps working even when you disconnect. Check back hours later and see what it's done.
 
-## Persistent Claude Sessions
+## Key Aliases
 
 ```bash
-tmux new -s claude    # Create named session
-claude                # Start Claude
-# Ctrl-a d            # Detach (keeps running)
-tmux attach -t claude # Reconnect later
+c         # claude
+lg        # lazygit
+lzd       # lazydocker
+lt        # tree view (eza)
+z <dir>   # smart cd (zoxide)
 ```
 
-## tmux Key Bindings
+## Dotfiles
 
-| Key | Action |
-|-----|--------|
-| `Ctrl-a` | Prefix |
-| `Ctrl-a c` | New window |
-| `Ctrl-a \|` | Split vertical |
-| `Ctrl-a -` | Split horizontal |
-| `Ctrl-a h/j/k/l` | Navigate panes |
-| `Ctrl-a d` | Detach |
-| `Ctrl-a I` | Install plugins |
+Managed with GNU Stow. Includes:
 
-## AWS SSO Usage
+- `.zshrc` - vi-mode, modern CLI aliases, tool integrations
+- `.tmux.conf` - Ctrl-a prefix, vim navigation, session persistence
+- `.gitconfig` - GPG signing, sensible defaults
 
-```bash
-aws sso login         # Opens browser
-aws s3 ls             # Use normally
-aws sso login         # Re-login when expired
-```
+## Credits
 
-## Security Analysis
-
-Run `./setup` → "Run Security Analysis":
-
-```
-✓ Tailscale running with SSH enabled
-✓ UFW active, only tailscale0 allowed
-✓ OpenSSH daemon disabled
-✓ Automatic security updates enabled
-✓ No ports open to public internet
-
-Score: 5 / 5
-EXCELLENT - Server is fully locked down to Tailscale only
-```
-
-## Directory Structure
-
-```
-~/dev/environment/
-├── setup                 # Interactive CLI
-├── steps/                # Modular setup steps
-│   ├── tailscale.sh
-│   ├── ufw.sh
-│   ├── disable_ssh.sh
-│   ├── base_packages.sh
-│   ├── node.sh
-│   ├── bun.sh
-│   ├── claude.sh
-│   ├── tmux.sh
-│   ├── zsh.sh
-│   ├── dotfiles.sh
-│   └── aws_sso.sh
-├── scripts/
-│   └── analyze.sh        # Security analysis
-└── home/                 # Dotfiles (stow managed)
-    ├── .tmux.conf
-    ├── .zshrc
-    ├── .gitconfig
-    └── .ssh/config
-```
-
-## State File
-
-Progress saved to `~/.config/vps-setup/state.json`. Reset via menu or delete the file.
-
-## Emergency Access
-
-If you lose Tailscale access:
-1. Use VPS provider's console/VNC access
-2. Run `sudo tailscale up --ssh` to reconnect
-
-## Managing Access
-
-https://login.tailscale.com/admin/machines
+Inspired by [thdxr/environment](https://github.com/thdxr/environment) from Dax at SST.
