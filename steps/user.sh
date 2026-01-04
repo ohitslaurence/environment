@@ -69,10 +69,12 @@ if [[ $EUID -eq 0 ]]; then
         exit 1  # Exit with error so the step isn't marked complete
     else
         echo ""
-        echo "Skipping user creation. Continuing as root..."
+        echo "Skipping user creation."
         echo ""
-        echo "⚠ This is not recommended for production use."
+        echo "⚠ Running as root is not recommended."
+        echo "  This step will remain incomplete until you create a user."
         echo ""
+        exit 1  # Don't mark complete if still root
     fi
 else
     # Running as non-root user
