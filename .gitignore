@@ -1,0 +1,19 @@
+# Local overrides
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# Sensitive
+*.pem
+*.key
+id_rsa*
+id_ed25519*

@@ -1,0 +1,48 @@
+# Git Configuration
+# User details will be set during install via: git config --global user.name/email
+
+[init]
+    defaultBranch = main
+
+[core]
+    editor = nvim
+    autocrlf = input
+    whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
+
+[pull]
+    ff = only
+    rebase = true
+
+[push]
+    default = current
+    autoSetupRemote = true
+
+[fetch]
+    prune = true
+
+[merge]
+    conflictStyle = diff3
+
+[diff]
+    colorMoved = default
+
+[rerere]
+    enabled = true
+
+[alias]
+    st = status
+    co = checkout
+    br = branch
+    ci = commit
+    unstage = reset HEAD --
+    last = log -1 HEAD
+    lg = log --oneline --graph --all --decorate -20
+    amend = commit --amend --no-edit
+    wip = !git add -A && git commit -m 'WIP'
+    undo = reset HEAD~1 --mixed
+
+[color]
+    ui = auto
+
+[credential]
+    helper = cache --timeout=3600
