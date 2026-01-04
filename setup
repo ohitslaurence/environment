@@ -41,6 +41,7 @@ init_state() {
   "tmux": false,
   "zsh": false,
   "dotfiles": false,
+  "syncthing": false,
   "aws_sso": false
 }
 EOF
@@ -92,6 +93,7 @@ build_menu() {
     echo "$(status_icon tmux) tmux - Terminal multiplexer"
     echo "$(status_icon zsh) zsh - Shell configuration"
     echo "$(status_icon dotfiles) Dotfiles - tmux, zsh, git, GPG signing"
+    echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
 }
 
@@ -200,6 +202,7 @@ run_all_remaining() {
         "tmux"
         "zsh"
         "dotfiles"
+        "syncthing"
         "aws_sso"
     )
 
@@ -237,6 +240,7 @@ select_steps() {
         "tmux:tmux"
         "zsh:zsh config"
         "dotfiles:Dotfiles"
+        "syncthing:Syncthing"
         "aws_sso:AWS SSO"
     )
 
