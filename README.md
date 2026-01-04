@@ -75,15 +75,15 @@ Progress is saved - come back anytime and resume where you left off.
 On your **laptop**, add to `~/.ssh/config` for easy access:
 
 ```
-Host gondor
-    User laurence
+Host <tailscale-hostname>
+    User <username>
 ```
 
 Then:
 
 ```bash
 # SSH in via Tailscale MagicDNS
-ssh gondor
+ssh <tailscale-hostname>
 
 # Start a persistent session
 tmux new -s agent
