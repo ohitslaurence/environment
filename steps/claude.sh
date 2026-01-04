@@ -1,22 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Installing Claude Code..."
-
-# Ensure npm is available
-export FNM_PATH="$HOME/.local/share/fnm"
-export PATH="$FNM_PATH:$PATH"
-if command -v fnm &> /dev/null; then
-    eval "$(fnm env)"
-fi
-
-if ! command -v npm &> /dev/null; then
-    echo "ERROR: npm not found. Run the Node.js step first."
-    exit 1
-fi
+echo "Installing Claude Code (native)..."
 
 if ! command -v claude &> /dev/null; then
-    npm install -g @anthropic-ai/claude-code
+    curl -fsSL https://claude.ai/install.sh | bash
+
+    # Ensure PATH is updated for current session
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
 echo ""
