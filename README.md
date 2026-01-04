@@ -25,6 +25,9 @@ Tailnet ────────> VPS (Tailscale SSH only)
 ## Quick Start
 
 ```bash
+# Optional: set a hostname (default is often "None" or random)
+sudo hostnamectl set-hostname vps
+
 git clone https://github.com/ohitslaurence/environment.git ~/dev/environment
 cd ~/dev/environment
 ./setup
