@@ -265,7 +265,8 @@ select_steps() {
     SELECTED=$(printf '%s\n' "${items[@]}" | gum choose --no-limit --header "Select steps to run:")
 
     if [[ -n "$SELECTED" ]]; then
-        echo "$SELECTED" | while read selection; do
+        # Use here-string to avoid subshell (which breaks interactive prompts)
+        while read -r selection; do
             # Extract step name from selection
             for opt in "${options[@]}"; do
                 local key="${opt%%:*}"
@@ -274,7 +275,7 @@ select_steps() {
                     run_step "$key"
                 fi
             done
-        done
+        done <<< "$SELECTED"
         gum input --placeholder "Press enter to continue..."
     fi
 }
