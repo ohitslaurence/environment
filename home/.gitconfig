@@ -1,5 +1,8 @@
 # Git Configuration
-# User details will be set during install via: git config --global user.name/email
+# User-specific settings (name, email, signingkey) are in ~/.gitconfig.local
+
+[include]
+    path = ~/.gitconfig.local
 
 [init]
     defaultBranch = main

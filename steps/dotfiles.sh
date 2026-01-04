@@ -47,22 +47,33 @@ echo "                    Git Configuration"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
 
-# Configure git user
-if ! git config --global user.email &> /dev/null; then
+# User-specific git config goes in .gitconfig.local (not the symlinked .gitconfig)
+LOCAL_GITCONFIG="$HOME/.gitconfig.local"
+
+# Check existing config
+GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+
+if [[ -z "$GIT_EMAIL" ]]; then
     GIT_EMAIL=$(gum input --placeholder "Enter your git email")
-    git config --global user.email "$GIT_EMAIL"
 else
-    GIT_EMAIL=$(git config --global user.email)
     echo "Git email: $GIT_EMAIL"
 fi
 
-if ! git config --global user.name &> /dev/null; then
+if [[ -z "$GIT_NAME" ]]; then
     GIT_NAME=$(gum input --placeholder "Enter your git name")
-    git config --global user.name "$GIT_NAME"
 else
-    GIT_NAME=$(git config --global user.name)
     echo "Git name: $GIT_NAME"
 fi
+
+# Write to .gitconfig.local (separate from stowed .gitconfig)
+cat > "$LOCAL_GITCONFIG" << EOF
+[user]
+    email = $GIT_EMAIL
+    name = $GIT_NAME
+EOF
+
+echo "User config written to $LOCAL_GITCONFIG"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"
@@ -117,10 +128,10 @@ EOF
     echo "GPG key generated: $GPG_KEY"
 fi
 
-# Configure git to use GPG key
-git config --global user.signingkey "$GPG_KEY"
-git config --global commit.gpgsign true
-git config --global tag.gpgsign true
+# Add signing key to .gitconfig.local
+cat >> "$LOCAL_GITCONFIG" << EOF
+    signingkey = $GPG_KEY
+EOF
 
 echo ""
 echo "Git configured to sign commits with key: $GPG_KEY"
