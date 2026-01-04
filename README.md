@@ -19,11 +19,8 @@ Tailnet ────────> VPS (Tailscale SSH only)
 ## Quick Start
 
 ```bash
-# On your VPS (initial SSH access required)
-git clone https://github.com/YOUR_USERNAME/environment.git ~/dev/environment
+git clone https://github.com/ohitslaurence/environment.git ~/dev/environment
 cd ~/dev/environment
-
-# Run interactive setup
 ./setup
 ```
 
@@ -34,8 +31,6 @@ The `./setup` command launches an interactive menu powered by [gum](https://gith
 ```
 ╔══════════════════════════════════════════════════════════════╗
 ║            🖥️  VPS Environment Setup                          ║
-║                                                              ║
-║  Select steps to run (space to select, enter to confirm)    ║
 ╚══════════════════════════════════════════════════════════════╝
 
 Current Status:
@@ -69,23 +64,11 @@ Current Status:
 | Base Packages | git, curl, ripgrep, neovim, etc. |
 | Node.js | fnm + Node LTS + pnpm |
 | Bun | Fast JavaScript runtime |
-| Claude Code | AI coding assistant |
+| Claude Code | AI coding assistant (native install) |
 | tmux | Terminal multiplexer + plugins |
 | zsh | Shell configuration |
 | Dotfiles | Symlink configs via stow |
 | AWS SSO | IAM Identity Center setup |
-
-## Legacy Scripts
-
-The old non-interactive scripts still work:
-
-```bash
-./install.sh --all        # Complete setup
-./install.sh --security   # Security only
-./install.sh --dev        # Dev tools only
-./install.sh --dotfiles   # Configs only
-./install.sh --analyze    # Security analysis
-```
 
 ## Connecting After Setup
 
@@ -101,16 +84,10 @@ No SSH keys needed.
 ## Persistent Claude Sessions
 
 ```bash
-# Create named session
-tmux new -s claude
-
-# Start Claude
-claude
-
-# Detach (keeps running): Ctrl-a d
-
-# Reconnect later
-tmux attach -t claude
+tmux new -s claude    # Create named session
+claude                # Start Claude
+# Ctrl-a d            # Detach (keeps running)
+tmux attach -t claude # Reconnect later
 ```
 
 ## tmux Key Bindings
@@ -127,21 +104,13 @@ tmux attach -t claude
 
 ## AWS SSO Usage
 
-After setup:
-
 ```bash
-# Login (opens browser)
-aws sso login
-
-# Use AWS CLI normally
-aws s3 ls
-
-# Credentials auto-expire (typically 1-12 hours)
-# Re-login when expired
-aws sso login
+aws sso login         # Opens browser
+aws s3 ls             # Use normally
+aws sso login         # Re-login when expired
 ```
 
-## Security Checklist
+## Security Analysis
 
 Run `./setup` → "Run Security Analysis":
 
@@ -160,9 +129,8 @@ EXCELLENT - Server is fully locked down to Tailscale only
 
 ```
 ~/dev/environment/
-├── setup                 # Interactive CLI (start here)
-├── install.sh            # Legacy non-interactive script
-├── steps/                # Individual setup steps
+├── setup                 # Interactive CLI
+├── steps/                # Modular setup steps
 │   ├── tailscale.sh
 │   ├── ufw.sh
 │   ├── disable_ssh.sh
@@ -174,8 +142,8 @@ EXCELLENT - Server is fully locked down to Tailscale only
 │   ├── zsh.sh
 │   ├── dotfiles.sh
 │   └── aws_sso.sh
-├── scripts/              # Utility scripts
-│   └── analyze.sh
+├── scripts/
+│   └── analyze.sh        # Security analysis
 └── home/                 # Dotfiles (stow managed)
     ├── .tmux.conf
     ├── .zshrc
@@ -185,28 +153,14 @@ EXCELLENT - Server is fully locked down to Tailscale only
 
 ## State File
 
-Progress is saved to `~/.config/vps-setup/state.json`:
-
-```json
-{
-  "tailscale": true,
-  "ufw": true,
-  "disable_ssh": false,
-  "base_packages": true,
-  ...
-}
-```
-
-Reset with `./setup` → "Reset State" or delete the file.
+Progress saved to `~/.config/vps-setup/state.json`. Reset via menu or delete the file.
 
 ## Emergency Access
 
 If you lose Tailscale access:
 1. Use VPS provider's console/VNC access
 2. Run `sudo tailscale up --ssh` to reconnect
-3. Or temporarily enable OpenSSH: `sudo systemctl start sshd`
 
 ## Managing Access
 
-Control who can SSH via Tailscale admin:
 https://login.tailscale.com/admin/machines
