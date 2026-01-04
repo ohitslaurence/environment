@@ -124,6 +124,7 @@ init_state() {
   "node": false,
   "bun": false,
   "claude": false,
+  "opencode": false,
   "syncthing": false,
   "aws_sso": false
 }
@@ -167,6 +168,7 @@ build_menu() {
     echo "$(status_icon node) Node.js - via fnm (version manager)"
     echo "$(status_icon bun) Bun - Fast JS runtime"
     echo "$(status_icon claude) Claude Code - AI coding assistant"
+    echo "$(status_icon opencode) OpenCode - AI coding assistant"
     echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
 }
@@ -271,6 +273,7 @@ run_all_remaining() {
         "node"
         "bun"
         "claude"
+        "opencode"
         "syncthing"
         "aws_sso"
     )
@@ -308,6 +311,7 @@ select_steps() {
         "node:Node.js (fnm)"
         "bun:Bun"
         "claude:Claude Code"
+        "opencode:OpenCode"
         "syncthing:Syncthing"
         "aws_sso:AWS SSO"
     )
