@@ -30,6 +30,7 @@ init_state() {
     if [[ ! -f "$STATE_FILE" ]]; then
         cat > "$STATE_FILE" << 'EOF'
 {
+  "user": false,
   "tailscale": false,
   "ufw": false,
   "disable_ssh": false,
@@ -82,6 +83,7 @@ status_icon() {
 
 # Build menu items with status
 build_menu() {
+    echo "$(status_icon user) Create User - Setup sudo user (if root)"
     echo "$(status_icon tailscale) Tailscale SSH - Secure mesh VPN access"
     echo "$(status_icon ufw) UFW Firewall - Lock down to Tailscale only"
     echo "$(status_icon disable_ssh) Disable OpenSSH - Remove traditional SSH"
@@ -191,6 +193,7 @@ main_menu() {
 # Run all remaining steps
 run_all_remaining() {
     local steps=(
+        "user"
         "tailscale"
         "ufw"
         "disable_ssh"
@@ -229,6 +232,7 @@ run_all_remaining() {
 # Select specific steps
 select_steps() {
     local options=(
+        "user:Create User"
         "tailscale:Tailscale SSH"
         "ufw:UFW Firewall"
         "disable_ssh:Disable OpenSSH"
