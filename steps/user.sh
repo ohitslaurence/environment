@@ -1,20 +1,30 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "Checking user setup..."
+echo "═══════════════════════════════════════════════════════════════"
+echo "                    User Setup"
+echo "═══════════════════════════════════════════════════════════════"
+echo ""
+echo "Current user: $USER (EUID: $EUID)"
+echo ""
 
 if [[ $EUID -eq 0 ]]; then
+    echo "⚠ Running as root - you should create a regular sudo user."
     echo ""
-    echo "═══════════════════════════════════════════════════════════════"
-    echo "                    Running as root"
-    echo "═══════════════════════════════════════════════════════════════"
-    echo ""
-    echo "You should create a regular user with sudo privileges."
-    echo "Running as root directly is not recommended."
+    echo "Running as root directly is not recommended because:"
+    echo "  • No accident prevention (every command is privileged)"
+    echo "  • Tailscale SSH works better with regular users"
+    echo "  • Follows security best practices"
     echo ""
 
     if gum confirm "Create a new sudo user now?"; then
-        USERNAME=$(gum input --placeholder "Enter username")
+        echo ""
+        USERNAME=$(gum input --placeholder "Enter username" --header "New username:")
+
+        if [[ -z "$USERNAME" ]]; then
+            echo "No username provided. Exiting."
+            exit 1
+        fi
 
         if id "$USERNAME" &>/dev/null; then
             echo "User '$USERNAME' already exists."
@@ -23,10 +33,24 @@ if [[ $EUID -eq 0 ]]; then
                 usermod -aG sudo "$USERNAME"
             fi
         else
+            echo ""
             echo "Creating user '$USERNAME'..."
+            echo "You'll be prompted to set a password."
+            echo ""
             adduser "$USERNAME"
             usermod -aG sudo "$USERNAME"
+            echo ""
             echo "User '$USERNAME' created and added to sudo group."
+        fi
+
+        # Copy environment repo to new user
+        if [[ -d "/root/dev/environment" ]]; then
+            echo ""
+            echo "Copying environment repo to /home/$USERNAME/dev..."
+            mkdir -p "/home/$USERNAME/dev"
+            cp -r /root/dev/environment "/home/$USERNAME/dev/"
+            chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/dev"
+            echo "Done."
         fi
 
         echo ""
@@ -34,35 +58,32 @@ if [[ $EUID -eq 0 ]]; then
         echo "                    User Created!"
         echo "═══════════════════════════════════════════════════════════════"
         echo ""
-        echo "Now do the following:"
+        echo "Now switch to the new user and re-run setup:"
         echo ""
-        echo "1. Copy environment repo to new user's home:"
-        echo "   cp -r ~/dev /home/$USERNAME/"
-        echo "   chown -R $USERNAME:$USERNAME /home/$USERNAME/dev"
+        echo "  su - $USERNAME"
+        echo "  cd ~/dev/environment"
+        echo "  ./setup"
         echo ""
-        echo "2. Switch to the new user:"
-        echo "   su - $USERNAME"
+        echo "Exiting now. Run the commands above to continue."
         echo ""
-        echo "3. Re-run setup:"
-        echo "   cd ~/dev/environment"
-        echo "   ./setup"
-        echo ""
-        exit 1
+        exit 1  # Exit with error so the step isn't marked complete
     else
         echo ""
-        echo "Continuing as root (not recommended)..."
+        echo "Skipping user creation. Continuing as root..."
+        echo ""
+        echo "⚠ This is not recommended for production use."
         echo ""
     fi
 else
     # Running as non-root user
     if sudo -n true 2>/dev/null; then
-        echo "Running as: $USER (with sudo privileges)"
+        echo "✓ Running as '$USER' with sudo privileges"
         echo ""
-        echo "✓ User setup looks good!"
+        echo "User setup looks good!"
     else
         echo "Running as: $USER"
         echo ""
-        echo "WARNING: This user may not have sudo privileges."
+        echo "⚠ WARNING: This user may not have sudo privileges."
         echo "Some steps may fail without sudo access."
         echo ""
         if ! gum confirm "Continue anyway?"; then
