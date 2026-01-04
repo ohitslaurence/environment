@@ -72,9 +72,18 @@ Progress is saved - come back anytime and resume where you left off.
 
 ## The Workflow
 
+On your **laptop**, add to `~/.ssh/config` for easy access:
+
+```
+Host gondor
+    User laurence
+```
+
+Then:
+
 ```bash
-# SSH in via Tailscale
-ssh me@100.x.x.x
+# SSH in via Tailscale MagicDNS
+ssh gondor
 
 # Start a persistent session
 tmux new -s agent
