@@ -95,10 +95,14 @@ if [[ -z "$EXISTING_KEY" ]]; then
     echo ""
 
     # Create key using batch mode for non-interactive generation
+    # Using RSA for compatibility (ed25519 not supported in batch mode on older GPG)
     gpg --batch --gen-key <<EOF
-Key-Type: ed25519
+%no-protection
+Key-Type: RSA
+Key-Length: 4096
 Key-Usage: sign
-Subkey-Type: cv25519
+Subkey-Type: RSA
+Subkey-Length: 4096
 Subkey-Usage: encrypt
 Name-Real: $GPG_NAME
 Name-Email: $GPG_EMAIL
