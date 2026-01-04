@@ -34,6 +34,7 @@ init_state() {
   "ufw": false,
   "disable_ssh": false,
   "base_packages": false,
+  "docker": false,
   "node": false,
   "bun": false,
   "claude": false,
@@ -83,13 +84,14 @@ build_menu() {
     echo "$(status_icon tailscale) Tailscale SSH - Secure mesh VPN access"
     echo "$(status_icon ufw) UFW Firewall - Lock down to Tailscale only"
     echo "$(status_icon disable_ssh) Disable OpenSSH - Remove traditional SSH"
-    echo "$(status_icon base_packages) Base Packages - git, curl, build tools"
+    echo "$(status_icon base_packages) Base Packages - eza, bat, lazygit, gh, etc."
+    echo "$(status_icon docker) Docker - Container runtime"
     echo "$(status_icon node) Node.js - via fnm (version manager)"
     echo "$(status_icon bun) Bun - Fast JS runtime"
     echo "$(status_icon claude) Claude Code - AI coding assistant"
     echo "$(status_icon tmux) tmux - Terminal multiplexer"
     echo "$(status_icon zsh) zsh - Shell configuration"
-    echo "$(status_icon dotfiles) Dotfiles - tmux, zsh, git configs"
+    echo "$(status_icon dotfiles) Dotfiles - tmux, zsh, git, GPG signing"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
 }
 
@@ -191,6 +193,7 @@ run_all_remaining() {
         "ufw"
         "disable_ssh"
         "base_packages"
+        "docker"
         "node"
         "bun"
         "claude"
@@ -227,6 +230,7 @@ select_steps() {
         "ufw:UFW Firewall"
         "disable_ssh:Disable OpenSSH"
         "base_packages:Base Packages"
+        "docker:Docker"
         "node:Node.js (fnm)"
         "bun:Bun"
         "claude:Claude Code"

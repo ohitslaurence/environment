@@ -83,6 +83,10 @@ path=(
     $path
 )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Tool Initialization
+# ══════════════════════════════════════════════════════════════════════════════
+
 # fnm (Fast Node Manager)
 if [[ -d "$HOME/.local/share/fnm" ]]; then
     export FNM_PATH="$HOME/.local/share/fnm"
@@ -102,11 +106,63 @@ if [[ -d "$HOME/.local/share/pnpm" ]]; then
     path=($PNPM_HOME $path)
 fi
 
-# Aliases
-alias ls='ls --color=auto'
-alias ll='ls -lah'
-alias la='ls -A'
-alias l='ls -CF'
+# zoxide (smarter cd)
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init zsh)"
+fi
+
+# atuin (better history)
+if command -v atuin &> /dev/null; then
+    eval "$(atuin init zsh --disable-up-arrow)"
+fi
+
+# fzf
+if command -v fzf &> /dev/null; then
+    source <(fzf --zsh 2>/dev/null) || true
+fi
+
+# direnv
+if command -v direnv &> /dev/null; then
+    eval "$(direnv hook zsh)"
+fi
+
+# zsh plugins (Ubuntu paths)
+[[ -f /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]] && source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+[[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Modern CLI Aliases
+# ══════════════════════════════════════════════════════════════════════════════
+
+# eza (better ls)
+if command -v eza &> /dev/null; then
+    alias ls="eza"
+    alias ll="eza -la --git"
+    alias la="eza -a"
+    alias lt="eza --tree --level=2 --ignore-glob='node_modules|.git|dist|build'"
+    alias lta="eza --tree --level=3 --ignore-glob='node_modules|.git|dist|build'"
+else
+    alias ls='ls --color=auto'
+    alias ll='ls -lah'
+    alias la='ls -A'
+fi
+
+# bat (better cat)
+if command -v batcat &> /dev/null; then
+    alias cat="batcat --paging=never"
+    alias bat="batcat"
+elif command -v bat &> /dev/null; then
+    alias cat="bat --paging=never"
+fi
+
+# zoxide
+if command -v zoxide &> /dev/null; then
+    alias cd="z"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# General Aliases
+# ══════════════════════════════════════════════════════════════════════════════
 
 alias vim='nvim'
 alias vi='nvim'
@@ -118,6 +174,7 @@ alias ga='git add'
 alias gc='git commit'
 alias gp='git push'
 alias gl='git log --oneline -20'
+alias lg='lazygit'
 
 alias ..='cd ..'
 alias ...='cd ../..'
@@ -129,27 +186,18 @@ alias tn='tmux new -s'
 alias tl='tmux list-sessions'
 
 alias c='claude'
+alias lzd='lazydocker'
 
+# ══════════════════════════════════════════════════════════════════════════════
 # Functions
+# ══════════════════════════════════════════════════════════════════════════════
 
 mkcd() {
     mkdir -p "$1" && cd "$1"
 }
 
-cdl() {
-    cd "$1" && ls -la
-}
-
 dev() {
     cd "$DEV_HOME/${1:-}"
-}
-
-osc52() {
-    printf "\033]52;c;%s\a" "$(base64)"
-}
-
-tailscale-ssh() {
-    echo "Tailscale IP: $(tailscale ip -4 2>/dev/null || echo 'Not connected')"
 }
 
 # SSH Agent (if not already running)
