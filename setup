@@ -120,6 +120,7 @@ init_state() {
   "zsh": false,
   "tmux": false,
   "dotfiles": false,
+  "github_ssh": false,
   "docker": false,
   "node": false,
   "bun": false,
@@ -164,6 +165,7 @@ build_menu() {
     echo "$(status_icon zsh) zsh - Set as default shell"
     echo "$(status_icon tmux) tmux - Terminal multiplexer"
     echo "$(status_icon dotfiles) Dotfiles - shell, tmux, git, GPG signing"
+    echo "$(status_icon github_ssh) GitHub SSH - SSH key for git operations"
     echo "$(status_icon docker) Docker - Container runtime"
     echo "$(status_icon node) Node.js - via fnm (version manager)"
     echo "$(status_icon bun) Bun - Fast JS runtime"
@@ -269,6 +271,7 @@ run_all_remaining() {
         "zsh"
         "tmux"
         "dotfiles"
+        "github_ssh"
         "docker"
         "node"
         "bun"
@@ -307,6 +310,7 @@ select_steps() {
         "zsh:zsh"
         "tmux:tmux"
         "dotfiles:Dotfiles"
+        "github_ssh:GitHub SSH"
         "docker:Docker"
         "node:Node.js (fnm)"
         "bun:Bun"
