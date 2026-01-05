@@ -127,7 +127,8 @@ init_state() {
   "claude": false,
   "opencode": false,
   "syncthing": false,
-  "aws_sso": false
+  "aws_sso": false,
+  "nia_mcp": false
 }
 EOF
     fi
@@ -173,6 +174,9 @@ build_menu() {
     echo "$(status_icon opencode) OpenCode - AI coding assistant"
     echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
+    echo ""
+    gum style --faint "Optional (not in Run All):"
+    echo "$(status_icon nia_mcp) Nia MCP - AI tools for Claude/OpenCode"
 }
 
 run_step() {
@@ -318,6 +322,7 @@ select_steps() {
         "opencode:OpenCode"
         "syncthing:Syncthing"
         "aws_sso:AWS SSO"
+        "nia_mcp:Nia MCP (optional)"
     )
 
     local items=()
