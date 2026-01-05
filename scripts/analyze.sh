@@ -45,7 +45,7 @@ if command -v tailscale &> /dev/null; then
         echo "      Tailscale IP: $TAILSCALE_IP"
 
         # Check if Tailscale SSH is enabled
-        if tailscale status --json 2>/dev/null | grep -q '"SSH":true'; then
+        if tailscale status --json 2>/dev/null | grep -q 'tailscale.com/cap/ssh'; then
             check_pass "Tailscale SSH is enabled"
         else
             check_warn "Tailscale SSH not enabled (run: sudo tailscale up --ssh)"
@@ -94,9 +94,12 @@ echo ""
 if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null; then
     check_warn "OpenSSH daemon is running"
     echo "      With Tailscale SSH, OpenSSH is not needed."
-    echo "      Disable with: sudo systemctl disable --now sshd"
+    echo "      Disable with: sudo systemctl disable --now ssh"
+elif systemctl is-active --quiet ssh.socket 2>/dev/null; then
+    check_warn "OpenSSH socket is active (port 22 still listening)"
+    echo "      Disable with: sudo systemctl disable --now ssh.socket"
 else
-    check_pass "OpenSSH daemon is disabled (using Tailscale SSH only)"
+    check_pass "OpenSSH fully disabled (using Tailscale SSH only)"
 fi
 echo ""
 
@@ -141,7 +144,8 @@ fi
 echo ""
 
 echo "[System Updates]"
-UPDATES=$(apt list --upgradable 2>/dev/null | grep -c upgradable || echo "0")
+UPDATES=$(apt list --upgradable 2>/dev/null | grep -c "upgradable" || true)
+UPDATES=${UPDATES:-0}
 if [[ "$UPDATES" -eq 0 ]]; then
     check_pass "System is up to date"
 else
@@ -180,8 +184,8 @@ tailscale status &> /dev/null && ((SCORE++))
 # UFW active
 sudo ufw status | grep -q "Status: active" && ((SCORE++))
 
-# OpenSSH disabled
-! systemctl is-active --quiet sshd 2>/dev/null && ! systemctl is-active --quiet ssh 2>/dev/null && ((SCORE++))
+# OpenSSH disabled (service and socket)
+! systemctl is-active --quiet sshd 2>/dev/null && ! systemctl is-active --quiet ssh 2>/dev/null && ! systemctl is-active --quiet ssh.socket 2>/dev/null && ((SCORE++))
 
 # Auto updates
 systemctl is-enabled --quiet unattended-upgrades 2>/dev/null && ((SCORE++))
@@ -218,8 +222,8 @@ if ! sudo ufw status | grep -q "Status: active"; then
     ((RECOMMENDATIONS++))
 fi
 
-if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null; then
-    echo "  • Disable OpenSSH: sudo systemctl disable --now sshd"
+if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet ssh.socket 2>/dev/null; then
+    echo "  • Disable OpenSSH: sudo systemctl disable --now ssh ssh.socket"
     ((RECOMMENDATIONS++))
 fi
 
