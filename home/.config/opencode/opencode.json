@@ -1,4 +1,9 @@
 {
+  "instructions": [
+    "~/.claude/PRINCIPLES.md",
+    "~/.claude/RULES.md",
+    "~/.claude/PREFERENCES.md"
+  ],
   "mcp": {
     "nia": {
       "type": "remote",
