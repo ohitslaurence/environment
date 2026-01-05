@@ -17,8 +17,12 @@ echo "Syncthing $(syncthing --version | head -1)"
 # Enable and start Syncthing as user service
 echo ""
 echo "Enabling Syncthing service for user: $USER"
+
+# Ensure XDG_RUNTIME_DIR is set for user services
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
 systemctl --user enable syncthing.service
-systemctl --user start syncthing.service
+systemctl --user start syncthing.service || echo "Note: Service may need a re-login to start properly"
 
 # Create dev directory if it doesn't exist
 mkdir -p ~/dev
@@ -86,8 +90,8 @@ else
     echo ".stignore already exists at $STIGNORE_FILE"
 fi
 
-# Get device ID
-DEVICE_ID=$(syncthing --device-id 2>/dev/null)
+# Get device ID (may take a moment on first run)
+DEVICE_ID=$(syncthing --device-id 2>/dev/null || echo "Run 'syncthing --device-id' after service starts")
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════"
