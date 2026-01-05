@@ -187,6 +187,7 @@ alias tn='tmux new -s'
 alias tl='tmux list-sessions'
 
 alias c='claude'
+alias ccu='npx ccusage@latest'
 alias lzd='lazydocker'
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -104,10 +104,21 @@ Claude keeps working even when you disconnect. Check back hours later and see wh
 ```bash
 c         # claude
 cc        # claude --dangerously-skip-permissions (unrestricted mode)
+ccu       # ccusage - token usage and cost tracking
 lg        # lazygit
 lzd       # lazydocker
 lt        # tree view (eza)
 z <dir>   # smart cd (zoxide)
+```
+
+### ccusage Commands
+
+```bash
+ccu daily      # Daily token usage and costs
+ccu monthly    # Monthly aggregated report
+ccu session    # Usage by conversation session
+ccu blocks     # 5-hour billing windows
+ccu blocks --live  # Real-time usage dashboard
 ```
 
 ## Dotfiles
@@ -118,6 +129,7 @@ Managed with GNU Stow. Includes:
 - `.tmux.conf` - Ctrl-a prefix, vim navigation, session persistence
 - `.gitconfig` - GPG signing, sensible defaults
 - `.mcp.json` - Claude Code MCP servers (Nia)
+- `.claude/settings.json` - Claude Code settings (powerline status)
 - `.config/opencode/opencode.json` - OpenCode config
 
 ## Environment Variables & Secrets
