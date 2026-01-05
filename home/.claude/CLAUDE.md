@@ -3,3 +3,4 @@
 @PRINCIPLES.md
 @RULES.md
 @PREFERENCES.md
+@GIT.md

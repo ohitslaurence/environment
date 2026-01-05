@@ -49,6 +49,13 @@ else
     results+=("${YELLOW}○${NC} Bun (not installed)")
 fi
 
+# Worktrunk (git worktree manager)
+if command -v wt &> /dev/null; then
+    upgrade_tool "Worktrunk" "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/max-sixty/worktrunk/releases/latest/download/worktrunk-installer.sh | sh"
+else
+    results+=("${YELLOW}○${NC} Worktrunk (not installed)")
+fi
+
 # tmux plugins (if TPM is installed)
 if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
     upgrade_tool "tmux plugins" "$HOME/.tmux/plugins/tpm/bin/update_plugins all"

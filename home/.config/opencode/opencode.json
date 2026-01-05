@@ -1,17 +1,19 @@
 {
-  "instructions": [
-    "~/.claude/PRINCIPLES.md",
-    "~/.claude/RULES.md",
-    "~/.claude/PREFERENCES.md"
-  ],
   "mcp": {
     "nia": {
       "type": "remote",
       "url": "https://apigcp.trynia.ai/mcp",
+      "enabled": true,
       "headers": {
         "Authorization": "Bearer ${NIA_API_KEY}"
-      },
-      "enabled": true
+      }
     }
-  }
+  },
+  "instructions": [
+    "~/.claude/PRINCIPLES.md",
+    "~/.claude/RULES.md",
+    "~/.claude/PREFERENCES.md",
+    "~/.claude/GIT.md"
+  ],
+  "$schema": "https://opencode.ai/config.json"
 }
