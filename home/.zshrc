@@ -200,6 +200,38 @@ ta() {
     fi
 }
 
+# Switch to or create a tmux window for a project within current workspace
+# Usage: tw platform  (switches to/creates "platform" window in ~/dev/<session>/platform)
+tw() {
+    local name="$1"
+
+    if [[ -z "$name" ]]; then
+        echo "Usage: tw <project>"
+        echo "Available projects in current workspace:"
+        local session=$(tmux display-message -p '#S')
+        ls "$HOME/dev/$session" 2>/dev/null | head -20
+        return 1
+    fi
+
+    # Get current session name (e.g., "spritz")
+    local session=$(tmux display-message -p '#S')
+    local dir="$HOME/dev/$session/$name"
+
+    # Check if window exists in current session
+    if tmux list-windows -F '#W' | grep -q "^${name}$"; then
+        # Switch to existing window
+        tmux select-window -t "$name"
+    else
+        # Create new window
+        if [[ -d "$dir" ]]; then
+            tmux new-window -n "$name" -c "$dir"
+        else
+            echo "Directory not found: $dir"
+            return 1
+        fi
+    fi
+}
+
 alias c='claude'
 alias ccu='npx ccusage@latest'
 alias lzd='lazydocker'
