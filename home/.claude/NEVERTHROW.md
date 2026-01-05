@@ -1,10 +1,18 @@
+### Error Handling Strategy
+
+**Primary**: Effect TS is the preferred error handling approach. Check if the project uses Effect before implementing error handling.
+
+**Fallback**: When Effect is not available in a project, use neverthrow. The guidelines below apply to neverthrow-based projects only.
+
+---
+
 ### Neverthrow Usage Guidelines
 
-This codebase uses neverthrow for error handling. Follow these patterns to maintain consistency and type safety.
+When a project uses neverthrow for error handling, follow these patterns to maintain consistency and type safety.
 
 #### Core Principles
 
-1. **Always prefer neverthrow** for error handling over try/catch blocks
+1. **Always prefer neverthrow** for error handling over try/catch blocks (when Effect is not available)
 2. **Use safeTry with async/await generator syntax** for composing multiple async operations
 3. **Wrap promises with toAsyncResult** helper function
 4. **Provide helpful error messages and context** in all error cases
