@@ -49,13 +49,6 @@ else
     results+=("${YELLOW}○${NC} Bun (not installed)")
 fi
 
-# npm (via npm itself)
-if command -v npm &> /dev/null; then
-    upgrade_tool "npm" "npm install -g npm@latest"
-else
-    results+=("${YELLOW}○${NC} npm (not installed)")
-fi
-
 # tmux plugins (if TPM is installed)
 if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
     upgrade_tool "tmux plugins" "$HOME/.tmux/plugins/tpm/bin/update_plugins all"
