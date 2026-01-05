@@ -82,7 +82,7 @@ echo "════════════════════════�
 echo ""
 
 # Check for existing GPG key
-EXISTING_KEY=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -A 1 "sec" | grep -oP "(?<=/)[A-F0-9]{16}" | head -1 || true)
+EXISTING_KEY=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | awk '/^sec/ {split($2, a, "/"); print a[2]}' | head -1 || true)
 
 if [[ -n "$EXISTING_KEY" ]]; then
     echo "Found existing GPG key: $EXISTING_KEY"
@@ -125,7 +125,7 @@ Expire-Date: 0
 EOF
 
     # Get the new key ID
-    GPG_KEY=$(gpg --list-secret-keys --keyid-format LONG "$GIT_EMAIL" 2>/dev/null | grep -A 1 "sec" | grep -oP "(?<=/)[A-F0-9]{16}" | head -1)
+    GPG_KEY=$(gpg --list-secret-keys --keyid-format LONG "$GIT_EMAIL" 2>/dev/null | awk '/^sec/ {split($2, a, "/"); print a[2]}' | head -1)
 
     echo ""
     echo "GPG key generated: $GPG_KEY"
