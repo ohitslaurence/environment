@@ -65,7 +65,8 @@ Progress is saved - come back anytime and resume where you left off.
 | **Modern CLI** | eza, bat, zoxide, atuin, fzf, direnv |
 | **TUI** | lazygit, lazydocker, htop, neovim |
 | **Runtime** | Docker, Node.js (fnm), Bun, pnpm |
-| **AI** | Claude Code (native install) |
+| **AI** | Claude Code, OpenCode, Nia MCP (optional) |
+| **Sync** | Syncthing (file sync to laptop) |
 | **Shell** | zsh, tmux with persistence |
 | **Git** | GPG commit signing, GitHub CLI |
 | **Cloud** | AWS CLI with IAM Identity Center |
@@ -102,6 +103,7 @@ Claude keeps working even when you disconnect. Check back hours later and see wh
 
 ```bash
 c         # claude
+cc        # claude --dangerously-skip-permissions (unrestricted mode)
 lg        # lazygit
 lzd       # lazydocker
 lt        # tree view (eza)
@@ -115,6 +117,33 @@ Managed with GNU Stow. Includes:
 - `.zshrc` - vi-mode, modern CLI aliases, tool integrations
 - `.tmux.conf` - Ctrl-a prefix, vim navigation, session persistence
 - `.gitconfig` - GPG signing, sensible defaults
+- `.mcp.json` - Claude Code MCP servers (Nia)
+- `.config/opencode/opencode.json` - OpenCode config
+
+## Environment Variables & Secrets
+
+Configs are version controlled but **secrets stay local**. The pattern:
+
+```
+~/.zshrc.local          # API keys, not in git
+~/.mcp.json             # Uses ${NIA_API_KEY} from environment
+```
+
+**How it works:**
+1. Stow symlinks config files from this repo to `~`
+2. Config files reference env vars like `${NIA_API_KEY}`
+3. Actual keys are stored in `~/.zshrc.local` (sourced by `.zshrc`)
+4. Each machine has its own `.zshrc.local` with real values
+
+**Current env vars:**
+| Variable | Purpose | Set by |
+|----------|---------|--------|
+| `NIA_API_KEY` | Nia MCP authentication | `./setup` → Nia MCP step |
+
+To add a secret on a new machine, either run the setup step or manually add to `~/.zshrc.local`:
+```bash
+export NIA_API_KEY="your-key-here"
+```
 
 ## Credits
 
