@@ -1,0 +1,12 @@
+{
+  "mcp": {
+    "nia": {
+      "type": "remote",
+      "url": "https://apigcp.trynia.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${NIA_API_KEY}"
+      },
+      "enabled": true
+    }
+  }
+}

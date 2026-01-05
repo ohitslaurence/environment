@@ -51,7 +51,7 @@ if command -v claude &> /dev/null; then
     # Remove existing if present
     claude mcp remove nia 2>/dev/null || true
 
-    # Add with the API key
+    # Add with the API key (Claude reads from env var at runtime)
     claude mcp add --transport http nia "https://apigcp.trynia.ai/mcp" \
         --header "Authorization: Bearer $NIA_API_KEY"
 
@@ -60,59 +60,23 @@ else
     echo "Claude Code not installed, skipping..."
 fi
 
-# Configure OpenCode
+# OpenCode config - ensure stow has run
 echo ""
 echo "Configuring OpenCode..."
 OPENCODE_CONFIG="$HOME/.config/opencode/opencode.json"
-mkdir -p "$(dirname "$OPENCODE_CONFIG")"
 
-if [[ -f "$OPENCODE_CONFIG" ]]; then
-    # Merge with existing config using jq if available
-    if command -v jq &> /dev/null; then
-        EXISTING=$(cat "$OPENCODE_CONFIG")
-        echo "$EXISTING" | jq --arg key "$NIA_API_KEY" '.mcp.nia = {
-            "type": "remote",
-            "url": "https://apigcp.trynia.ai/mcp",
-            "headers": {
-                "Authorization": ("Bearer " + $key)
-            },
-            "enabled": true
-        }' > "$OPENCODE_CONFIG"
-    else
-        echo "jq not installed - creating fresh config (existing settings may be lost)"
-        cat > "$OPENCODE_CONFIG" << EOF
-{
-  "mcp": {
-    "nia": {
-      "type": "remote",
-      "url": "https://apigcp.trynia.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer $NIA_API_KEY"
-      },
-      "enabled": true
-    }
-  }
-}
-EOF
-    fi
+if [[ -L "$OPENCODE_CONFIG" ]]; then
+    echo "OpenCode: Config already symlinked via stow"
+    echo "  Uses \${NIA_API_KEY} from environment"
+elif [[ -f "$OPENCODE_CONFIG" ]]; then
+    echo "OpenCode: Config exists (not managed by stow)"
+    echo "  You may need to manually add Nia MCP config"
 else
-    cat > "$OPENCODE_CONFIG" << EOF
-{
-  "mcp": {
-    "nia": {
-      "type": "remote",
-      "url": "https://apigcp.trynia.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer $NIA_API_KEY"
-      },
-      "enabled": true
-    }
-  }
-}
-EOF
+    echo "OpenCode: Running stow to create config symlink..."
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    cd "$SCRIPT_DIR" && stow -t ~ home
+    echo "OpenCode: Config symlinked"
 fi
-
-echo "OpenCode: Nia MCP configured"
 
 echo ""
 echo "═══════════════════════════════════════════════════════════════════"
@@ -121,8 +85,9 @@ echo "════════════════════════�
 echo ""
 echo "Nia MCP has been configured for:"
 echo "  - Claude Code (run 'claude mcp list' to verify)"
-echo "  - OpenCode (config at $OPENCODE_CONFIG)"
+echo "  - OpenCode (uses \${NIA_API_KEY} from environment)"
 echo ""
 echo "API key stored in ~/.zshrc.local (not committed to git)"
+echo "Config files are version controlled (use env var for secrets)"
 echo ""
 echo "Run 'source ~/.zshrc' to load the API key in your current shell."
