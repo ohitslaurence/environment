@@ -201,6 +201,10 @@ dev() {
     cd "$DEV_HOME/${1:-}"
 }
 
+cc() {
+    claude --dangerously-skip-permissions "$@"
+}
+
 # SSH Agent (if not already running)
 if [[ -z "$SSH_AUTH_SOCK" ]]; then
     eval "$(ssh-agent -s)" > /dev/null
