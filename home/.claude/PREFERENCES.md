@@ -1,53 +1,40 @@
-# Personal Development Preferences for Claude
+# Personal Development Preferences
 
-## Communication Style
+## Communication
 
-- Provide brief explanations, especially when deviating from initial concepts
-- Focus on making incremental changes that are easy to review in git diffs
-- After completing tasks, provide brief summary with key context and decision rationale
-- Prioritize clear, reviewable code over lengthy explanations
+- Brief over verbose
+- Incremental changes reviewable in git diffs
+- Summarize completed work with decision rationale
+- Suggest commits after completing tasks
 
-## Code Comments
-
-- Avoid inline comments - use clear function/variable naming instead
-- Document high-level functions with purpose and context for future LLM understanding
-- Comments should explain "why" not "what" when necessary
-
-## Code Style and Standards
+## Code Style
 
 ### TypeScript
 
-- Always use modern TypeScript best practices
-- Strict mode always enabled
-- Avoid `any` at all costs, `unknown` is acceptable but narrow it
-- Be explicit with types for LLM clarity
-- Leverage TypeScript to maximum effect with runtime validation (Zod)
+- Strict mode always
+- Avoid `any` - use `unknown` and narrow it
+- Explicit types for clarity
+- Runtime validation with Zod
 
-### Naming Conventions
+### Naming
 
 - Files: kebab-case
-- Variables and functions: camelCase
+- Variables/functions: camelCase
 - Constants: UPPER_SNAKE_CASE
-- Follow project-specific linting rules
 
-### Code Organization
+### Organization
 
-- Prefer logical file groupings over large files
 - Named exports only
-- No index export files - import directly from the file where functionality is defined
-- Alphabetical imports (use VS Code organize imports)
+- No barrel/index exports - import from source files directly
+- Logical file groupings over large files
 - Match existing style when it follows best practices
-- When in doubt about legacy code patterns, ask before refactoring
 
-## Development Workflow
+## Workflow
 
-### Git Commits
+### Git
 
-- Descriptive commit messages with high-level header and short summary
-- Suggest commits after completing tasks
-- Small, frequent commits for easier review
-- Example format:
-
+- Small, frequent commits
+- Format: header + bullet summary
   ```
   Add user authentication middleware
 
@@ -55,96 +42,48 @@
   - Add error handling for expired tokens
   ```
 
-### Incremental Development
+### Development
 
-- Break large tasks into smaller subtasks
-- Work on maximum 4 files at a time
-- Make changes reviewable through git diffs
-- Handle edge cases (make them clear)
+- Maximum 4 files at a time
 - Only implement what's asked - no scope creep
+- Ask before refactoring legacy code
 
 ### Testing
 
 - Write tests after implementation
 - Prefer Vitest over Jest
-- Suggest test implementation after feature completion
 
-## Technology Preferences
+## Technology
 
-### Package Management
+### Packages
 
-- Monorepos/workspaces: npm
-- Other projects: pnpm (for performance)
-- Simple implementations preferred over packages when reasonable
-- Preferred packages: neverthrow, zod, tiny-async-pool
+- Monorepos: npm
+- Other projects: pnpm
+- Simple implementations over packages when reasonable
+- Preferred: zod, tiny-async-pool
 - Avoid: axios
 
 ### AWS/Serverless
 
-- Use middy for Lambda middleware
+- middy for Lambda middleware
 - Separate business logic from handlers
-- Transitioning from Serverless Framework to SST v3
-- Handle errors carefully for queue/retry contexts
-
-### Code Quality
-
-- Tools: prettier, eslint, husky
-- Add lint + fix scripts if missing
-- Fix issues immediately when found
+- SST v3 for infrastructure
 
 ## Error Handling
 
-Use neverthrow for all error handling. See detailed guidelines below.
+Check the project for which error handling approach is used:
 
 @NEVERTHROW.md
 
-## Architecture and Design
+## Architecture
 
-### Making Suggestions
-
-- Suggest architectural improvements but don't implement without approval
-- Be specific about what should change and why
+- Suggest improvements but don't implement without approval
 - Flag performance and security concerns proactively
-- Document big decisions in README files in subfolders or inline
-
-### Code Review Focus
-
-- Watch for anti-patterns
-- Check variable naming quality
-- Ensure DRY principles
-- Verify proper formatting
-- Create project-level todos.md for future improvements
-
-### Development Philosophy
-
 - Prefer functional composition over OOP
-- Prioritize readability and understandability
-- Professional engineering approach - not "vibe coding"
-- Incremental progress with continuous review
 
-## Key Principles
+## Collaboration
 
-1. **Small, reviewable changes** - I review everything through git diffs
-2. **No assumptions** - Ask when uncertain, especially with legacy code
-3. **Professional engineering** - Quality, tested, reviewable code
-4. **Incremental progress** - Build features step by step
-5. **Clear communication** - Brief but informative updates
-6. **Respect scope** - Do what's asked, no more, no less
-
-## Collaborative Verification
-
-### When You Make Suggestions
-
-- When you say "I think" or make recommendations, I should verify and challenge if needed
-- I will double-check documentation, APIs, and requirements before automatically agreeing
-- I'll acknowledge what you're suggesting, then confirm whether it's correct
-- Examples of good responses:
-  - "Let me verify that idempotency header... I checked and it's actually optional in the docs, but adding it would be a good practice for safety"
-  - "I see you're suggesting X. Let me confirm... Actually, the docs show Y is required instead. Here's the reference: [link]"
-  - "You're right about that header - I missed it in the implementation. Let me add it now"
-- I should be 100% certain before challenging your suggestions
-- The goal is collaborative accuracy - we both catch things the other might miss
-
-## Additional Rules
-
-_This section will be updated as we work together and discover new preferences_
+When I make suggestions or say "I think":
+- Verify against documentation and actual code
+- Challenge if something seems wrong
+- Goal is collaborative accuracy - catch each other's mistakes
