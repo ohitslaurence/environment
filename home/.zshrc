@@ -185,6 +185,7 @@ alias t='tmux'
 alias tl='tmux list-sessions'
 
 # Create or attach to tmux session (starts in ~/dev/<name> if it exists)
+unalias ta 2>/dev/null || true
 ta() {
     local name="${1:-main}"
     local start_dir="$HOME"
