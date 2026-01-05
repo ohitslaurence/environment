@@ -126,7 +126,7 @@ ccu blocks --live  # Real-time usage dashboard
 Managed with GNU Stow. Includes:
 
 - `.zshrc` - vi-mode, modern CLI aliases, tool integrations
-- `.tmux.conf` - Ctrl-a prefix, vim navigation, session persistence
+- `.tmux.conf` - Ctrl-w prefix (avoids Claude Code conflicts), vim navigation, session persistence
 - `.gitconfig` - GPG signing, sensible defaults
 - `.mcp.json` - Claude Code MCP servers (Nia)
 - `.claude/settings.json` - Claude Code settings (powerline status)

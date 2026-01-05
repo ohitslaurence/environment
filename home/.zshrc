@@ -188,13 +188,16 @@ alias tl='tmux list-sessions'
 unalias ta 2>/dev/null || true
 ta() {
     local name="${1:-main}"
-    local start_dir="$HOME"
 
-    # If workspace dir exists, start there
-    [[ -d "$HOME/dev/$name" ]] && start_dir="$HOME/dev/$name"
-
-    # Attach if exists, otherwise create
-    tmux new-session -A -s "$name" -c "$start_dir"
+    # If session exists, just attach (don't change directory)
+    if tmux has-session -t "$name" 2>/dev/null; then
+        tmux attach -t "$name"
+    else
+        # New session - start in workspace dir if it exists
+        local start_dir="$HOME"
+        [[ -d "$HOME/dev/$name" ]] && start_dir="$HOME/dev/$name"
+        tmux new-session -s "$name" -c "$start_dir"
+    fi
 }
 
 alias c='claude'
