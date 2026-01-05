@@ -328,18 +328,17 @@ select_steps() {
         items+=("$status $label")
     done
 
-    SELECTED=$(printf '%s\n' "${items[@]}" | gum choose --no-limit --header "Select steps to run:")
+    SELECTED=$(printf '%s\n' "${items[@]}" | gum choose --header "Select a step to run:")
 
     if [[ -n "$SELECTED" ]]; then
-        while read -r selection; do
-            for opt in "${options[@]}"; do
-                local key="${opt%%:*}"
-                local label="${opt#*:}"
-                if [[ "$selection" == *"$label"* ]]; then
-                    run_step "$key"
-                fi
-            done
-        done <<< "$SELECTED"
+        for opt in "${options[@]}"; do
+            local key="${opt%%:*}"
+            local label="${opt#*:}"
+            if [[ "$SELECTED" == *"$label"* ]]; then
+                run_step "$key"
+                break
+            fi
+        done
         gum input --placeholder "Press enter to continue..."
     fi
 }
