@@ -79,6 +79,7 @@ export DEV_HOME="$HOME/dev"
 typeset -U path
 path=(
     $HOME/.local/bin
+    $HOME/.opencode/bin
     $HOME/dev/bin
     $path
 )
