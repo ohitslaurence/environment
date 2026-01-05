@@ -15,6 +15,7 @@
 - Avoid `any` - use `unknown` and narrow it
 - Explicit types for clarity
 - Runtime validation with Zod
+- Never use dynamic imports (`await import()`) - always static imports at top of file
 
 ### Naming
 

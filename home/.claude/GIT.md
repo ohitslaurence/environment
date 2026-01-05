@@ -136,16 +136,38 @@ git push                        # Subsequent pushes
 
 ## Project Hooks
 
-If `.config/wt.toml` exists in project root, hooks run automatically:
+Hooks are **project-specific** - each repo has its own `.config/wt.toml` in the project root.
+
+**Hook types:**
+
+| Hook | When | Blocking | Use Case |
+|------|------|----------|----------|
+| `post-create` | After worktree created | Yes | Install dependencies |
+| `post-start` | After creation (background) | No | Start dev server |
+| `pre-merge` | Before merge | Yes | Run tests, typecheck |
+
+**Example `.config/wt.toml`:**
 
 ```toml
+# Install deps when creating worktree
 post-create = "pnpm install"
+
+# Start dev server in background with unique port
 post-start = "pnpm dev --port {{ branch | hash_port }}"
 
+# Gates before merging (all must pass)
 [pre-merge]
-test = "pnpm test"
 typecheck = "pnpm tsc --noEmit"
+test = "pnpm test"
+lint = "pnpm lint"
 ```
+
+**Template variables:** `{{ branch }}`, `{{ worktree_path }}`, `{{ repo_path }}`
+
+**Setting up hooks for a project:**
+1. Create `.config/wt.toml` in project root
+2. Add hooks relevant to that project's stack
+3. Commit the file so team shares the config
 
 ## Don't
 
