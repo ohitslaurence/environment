@@ -152,13 +152,18 @@ echo ""
 echo "GitHub: https://github.com/settings/keys → New GPG key"
 echo ""
 
-if gum confirm "Copy public key to clipboard? (requires xclip)"; then
-    if command -v xclip &> /dev/null; then
-        gpg --armor --export "$GPG_KEY" | xclip -selection clipboard
-        echo "Copied to clipboard!"
-    else
-        echo "xclip not installed. Copy manually from above."
+# Skip clipboard on headless servers
+if [[ -n "${DISPLAY:-}" ]]; then
+    if gum confirm "Copy public key to clipboard?"; then
+        if command -v xclip &> /dev/null; then
+            gpg --armor --export "$GPG_KEY" | xclip -selection clipboard
+            echo "Copied to clipboard!"
+        else
+            echo "xclip not installed. Copy manually from above."
+        fi
     fi
+else
+    echo "(Copy the key above manually - no display available)"
 fi
 
 echo ""
