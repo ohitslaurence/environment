@@ -235,6 +235,7 @@ tw() {
 alias c='claude'
 alias ccu='npx ccusage@latest'
 alias lzd='lazydocker'
+alias sz='source ~/.zshrc'
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Functions
