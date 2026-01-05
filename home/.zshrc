@@ -249,7 +249,7 @@ dev() {
 }
 
 cc() {
-    claude --dangerously-skip-permissions "$@"
+    claude --dangerously-skip-permissions --continue "$@"
 }
 
 # SSH Agent (if not already running)
