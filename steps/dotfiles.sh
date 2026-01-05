@@ -98,11 +98,14 @@ if [[ -z "$EXISTING_KEY" ]]; then
     echo "No GPG key found. Let's create one."
     echo ""
 
-    # Generate GPG key
-    GPG_EMAIL=$(git config --global user.email)
-    GPG_NAME=$(git config --global user.name)
+    # Use the values we already have (from earlier in script)
+    if [[ -z "$GIT_EMAIL" ]] || [[ -z "$GIT_NAME" ]]; then
+        echo "Error: Git email and name are required for GPG key generation"
+        echo "Please run this step again and provide your details"
+        exit 1
+    fi
 
-    echo "Generating GPG key for: $GPG_NAME <$GPG_EMAIL>"
+    echo "Generating GPG key for: $GIT_NAME <$GIT_EMAIL>"
     echo ""
 
     # Create key using batch mode for non-interactive generation
@@ -115,14 +118,14 @@ Key-Usage: sign
 Subkey-Type: RSA
 Subkey-Length: 4096
 Subkey-Usage: encrypt
-Name-Real: $GPG_NAME
-Name-Email: $GPG_EMAIL
+Name-Real: $GIT_NAME
+Name-Email: $GIT_EMAIL
 Expire-Date: 0
 %commit
 EOF
 
     # Get the new key ID
-    GPG_KEY=$(gpg --list-secret-keys --keyid-format LONG "$GPG_EMAIL" 2>/dev/null | grep -A 1 "sec" | grep -oP "(?<=/)[A-F0-9]{16}" | head -1)
+    GPG_KEY=$(gpg --list-secret-keys --keyid-format LONG "$GIT_EMAIL" 2>/dev/null | grep -A 1 "sec" | grep -oP "(?<=/)[A-F0-9]{16}" | head -1)
 
     echo ""
     echo "GPG key generated: $GPG_KEY"
