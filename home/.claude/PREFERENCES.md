@@ -69,6 +69,16 @@
 - Separate business logic from handlers
 - SST v3 for infrastructure
 
+## Research
+
+If the Nia MCP server is available, use it heavily for research:
+- Obscure framework configurations and setups
+- Getting unfamiliar tooling working
+- Best practices and modern patterns
+- Problems where the answer isn't immediately clear
+
+Use `nia_research` with `mode: "deep"` for complex questions - it's extremely effective at finding solutions that aren't obvious from basic searches.
+
 ## Error Handling
 
 Check the project for which error handling approach is used:
