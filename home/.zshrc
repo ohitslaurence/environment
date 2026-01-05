@@ -182,9 +182,19 @@ alias ...='cd ../..'
 alias ....='cd ../../..'
 
 alias t='tmux'
-alias ta='tmux attach -t'
-alias tn='tmux new -s'
 alias tl='tmux list-sessions'
+
+# Create or attach to tmux session (starts in ~/dev/<name> if it exists)
+ta() {
+    local name="${1:-main}"
+    local start_dir="$HOME"
+
+    # If workspace dir exists, start there
+    [[ -d "$HOME/dev/$name" ]] && start_dir="$HOME/dev/$name"
+
+    # Attach if exists, otherwise create
+    tmux new-session -A -s "$name" -c "$start_dir"
+}
 
 alias c='claude'
 alias ccu='npx ccusage@latest'
