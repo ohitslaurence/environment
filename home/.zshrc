@@ -236,6 +236,7 @@ alias c='claude'
 alias ccu='npx ccusage@latest'
 alias lzd='lazydocker'
 alias sz='source ~/.zshrc'
+alias up='~/dev/environment/scripts/upgrade.sh'
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Functions
