@@ -28,9 +28,9 @@ upgrade_tool() {
     echo ""
 }
 
-# Claude Code (npm)
+# Claude Code (native install)
 if command -v claude &> /dev/null; then
-    upgrade_tool "Claude Code" "npm update -g @anthropic-ai/claude-code"
+    upgrade_tool "Claude Code" "claude update"
 else
     results+=("${YELLOW}○${NC} Claude Code (not installed)")
 fi
