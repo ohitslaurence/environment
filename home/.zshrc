@@ -262,6 +262,6 @@ fi
 # Source local overrides if present
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 
-. "$HOME/.cargo/env"
-
-if command -v wt >/dev/null 2>&1; then eval "$(command wt config shell init zsh)"; fi
+# Cargo env (for Rust tools)
+[[ -f "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
+export PATH="$HOME/.local/nvim-linux-x86_64/bin:$PATH"

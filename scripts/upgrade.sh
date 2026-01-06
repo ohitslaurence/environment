@@ -49,11 +49,11 @@ else
     results+=("${YELLOW}○${NC} Bun (not installed)")
 fi
 
-# Worktrunk (git worktree manager)
-if command -v wt &> /dev/null; then
-    upgrade_tool "Worktrunk" "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/max-sixty/worktrunk/releases/latest/download/worktrunk-installer.sh | sh"
+# Gritty (AI-powered Git CLI)
+if command -v gritty &> /dev/null; then
+    upgrade_tool "Gritty" "cd ~/dev/personal/gritty && git pull && bun install && bun run build"
 else
-    results+=("${YELLOW}○${NC} Worktrunk (not installed)")
+    results+=("${YELLOW}○${NC} Gritty (not installed)")
 fi
 
 # tmux plugins (if TPM is installed)

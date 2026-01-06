@@ -128,7 +128,7 @@ init_state() {
   "opencode": false,
   "syncthing": false,
   "aws_sso": false,
-  "worktrunk": false,
+  "gritty": false,
   "nia_mcp": false
 }
 EOF
@@ -175,7 +175,7 @@ build_menu() {
     echo "$(status_icon opencode) OpenCode - AI coding assistant"
     echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
-    echo "$(status_icon worktrunk) Worktrunk - Git worktree manager"
+    echo "$(status_icon gritty) Gritty - AI-powered Git CLI"
     echo ""
     gum style --faint "Optional (not in Run All):"
     echo "$(status_icon nia_mcp) Nia MCP - AI tools for Claude/OpenCode"
@@ -285,7 +285,7 @@ run_all_remaining() {
         "opencode"
         "syncthing"
         "aws_sso"
-        "worktrunk"
+        "gritty"
     )
 
     for step in "${steps[@]}"; do
@@ -325,7 +325,7 @@ select_steps() {
         "opencode:OpenCode"
         "syncthing:Syncthing"
         "aws_sso:AWS SSO"
-        "worktrunk:Worktrunk"
+        "gritty:Gritty"
         "nia_mcp:Nia MCP (optional)"
     )
 

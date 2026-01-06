@@ -10,7 +10,7 @@ VPS environment setup tool using GNU Stow for dotfile management. Interactive me
 
 ```bash
 ./setup                      # Interactive setup menu (gum-powered)
-scripts/upgrade.sh           # Upgrade Claude Code, OpenCode, Bun, Worktrunk, tmux plugins
+scripts/upgrade.sh           # Upgrade Claude Code, OpenCode, Bun, Gritty, tmux plugins
 scripts/analyze.sh           # Security analysis of the VPS
 ```
 

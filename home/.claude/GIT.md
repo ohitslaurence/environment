@@ -1,179 +1,134 @@
-# Git Workflow with Worktrees
+# Git Workflow with Gritty
 
-Use Worktrunk (`wt`) for all git operations. Never use raw git commands for branching or merging.
-
-## Mental Model
-
-**One branch = one directory.** Each feature gets its own worktree - isolated files, no stashing, no context bleeding.
-
-```
-~/dev/project          ← main (always clean)
-~/dev/project.feat-a   ← feat-a worktree
-~/dev/project.feat-b   ← feat-b worktree
-```
+Use Gritty (`gritty`) for all git commit and PR operations. It provides AI-powered commit messages, intelligent change grouping, and PR generation.
 
 ## Core Commands
 
 | Task | Command |
 |------|---------|
-| Start new feature | `wt switch -c feat/name` |
-| Switch to worktree | `wt switch feat/name` |
-| List all worktrees | `wt list` |
-| Remove worktree | `wt remove` |
+| Commit with AI message | `gritty commit` |
+| Organize multiple changes | `gritty compose` |
+| Create PR | `gritty pr` |
+| Review PR | `gritty review <number>` |
+| Create/switch branch | `gritty branch feat/name` |
 
 ## PR Workflow (Team Projects)
 
 Always create PRs for team projects - never merge locally to main.
 
 ```bash
-# 1. Create worktree
-wt switch -c feat/auth
+# 1. Create branch
+gritty branch feat/auth
 
 # 2. Work on feature...
 
-# 3. Commit and push
-wt step commit          # Commits with optional LLM message
-git push -u origin feat/auth
+# 3. Commit (use --accept for non-interactive)
+gritty commit --accept
 
-# 4. Create PR with good description
-gh pr create --title "feat(auth): Add JWT authentication" --body "$(cat <<'EOF'
-## Summary
-Brief description of what this PR does and why.
+# 4. Create PR with AI-generated description
+gritty pr --accept
 
-## Changes
-- Added JWT token validation middleware
-- Implemented refresh token rotation
-- Added auth error handling
-
-## Testing
-- [ ] Unit tests pass
-- [ ] Manual testing completed
-- [ ] Edge cases covered
-
-## Notes
-Any context reviewers should know.
-EOF
-)"
-
-# 5. After PR merged on GitHub, cleanup
-wt remove
+# 5. After PR merged on GitHub, switch back
+gritty branch main
+git pull
 ```
 
-**PR descriptions should:**
-- Summarize the what and why upfront
-- List concrete changes made
-- Include testing checklist
-- Note any risks, migrations, or follow-up work
+## Intelligent Compose
 
-## Solo/Trusted Workflow
-
-For personal projects or pre-approved changes, merge locally:
+When you have many uncommitted changes across different concerns, use `compose` to organize them:
 
 ```bash
-wt switch -c fix/typo
-# ... fix ...
-wt merge                # Squash + merge to main + cleanup
-git push
+gritty compose --accept
 ```
 
-## Parallel Features
+**How it works:**
+1. Analyzes all staged, unstaged, and untracked files
+2. AI proposes logical commit groupings (e.g., "feature + tests", "refactor", "docs")
+3. Creates separate commits for each grouping with appropriate messages
 
-When the user wants multiple features in parallel:
+Great for end-of-day commits or when you've been working on multiple things.
+
+## Speed Tiers
 
 ```bash
-# Create worktrees for each
-wt switch -c feat/auth
-wt switch -c feat/billing
-wt switch -c feat/dashboard
-
-# Each can have its own Claude session
-# wt list shows status of all
+gritty commit --fast    # Haiku - quick, simple changes
+gritty commit           # Sonnet - balanced (default)
+gritty commit --slow    # Opus - highest quality
 ```
 
 ## Commit Best Practices
 
 **Commit frequently.** Small, atomic commits that represent one logical change. Don't batch up hours of work into one commit.
 
-**Write clear messages.** The message should explain *what* changed and *why* - someone reading the log should understand the intent.
+**Use gritty for messages.** It analyzes diffs and generates conventional commit messages matching your repo's style.
 
-Format: `type(scope): imperative description`
-
-```
-feat(auth): Add JWT refresh token rotation
-fix(api): Handle null response in user endpoint
-refactor(db): Extract connection pooling to separate module
+**Add context when helpful:**
+```bash
+gritty commit --context "fixing the auth bug from issue #123"
 ```
 
-Types: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
+## PR Creation
+
+```bash
+# Create PR with AI-generated title and description
+gritty pr
+
+# Preview without creating
+gritty pr --dry-run
+
+# Create as draft
+gritty pr --draft
+
+# Add context for better description
+gritty pr --context "implements RFC-123"
+```
+
+## PR Review
+
+```bash
+# Review a specific PR
+gritty review 123
+
+# List open PRs and select one
+gritty review
+
+# Post review to GitHub
+gritty review 123 --post
+```
 
 ## Pushing
 
-**Branches: push freely.** Push to feature branches whenever you want - it's your workspace.
+**Branches: push freely.** Push to feature branches whenever you want.
 
 ```bash
 git push -u origin feat/auth    # First push sets upstream
 git push                        # Subsequent pushes
 ```
 
-**Main: never push without permission.** Even after `wt merge`, ask before pushing to main.
-
-```
-# After wt merge completes:
-"Ready to push to main - want me to push?"
-# Only push if user confirms
-```
+**Main: never push without permission.** Ask before pushing to main.
 
 ## When User Says...
 
 | User Says | Action |
 |-----------|--------|
-| "Start a new feature" | `wt switch -c feat/name` |
-| "Work on X in parallel" | Create multiple worktrees |
-| "Create a PR" | `wt step commit && git push && gh pr create` |
-| "Merge this" | Ask: PR or local merge? Use `wt merge` only for solo |
-| "Clean up" | `wt remove` after PR merged |
-| "What branches?" | `wt list` |
+| "Commit this" | `gritty commit --accept` |
+| "Organize my changes" | `gritty compose --accept` |
+| "Create a PR" | `gritty pr --accept` |
+| "Review this PR" | `gritty review <number>` |
+| "Start a new feature" | `gritty branch feat/name` |
 
-## Project Hooks
+## Important: Non-Interactive Mode
 
-Hooks are **project-specific** - each repo has its own `.config/wt.toml` in the project root.
+**Always use `--accept` flag** when running gritty from Claude Code, since interactive prompts (y/n/e) cannot be answered.
 
-**Hook types:**
-
-| Hook | When | Blocking | Use Case |
-|------|------|----------|----------|
-| `post-create` | After worktree created | Yes | Install dependencies |
-| `post-start` | After creation (background) | No | Start dev server |
-| `pre-merge` | Before merge | Yes | Run tests, typecheck |
-
-**Example `.config/wt.toml`:**
-
-```toml
-# Install deps when creating worktree
-post-create = "pnpm install"
-
-# Start dev server in background with unique port
-post-start = "pnpm dev --port {{ branch | hash_port }}"
-
-# Gates before merging (all must pass)
-[pre-merge]
-typecheck = "pnpm tsc --noEmit"
-test = "pnpm test"
-lint = "pnpm lint"
+```bash
+gritty commit --accept     # Auto-accept generated message
+gritty compose --accept    # Auto-accept all groupings
+gritty pr --accept         # Auto-accept PR description
 ```
-
-**Template variables:** `{{ branch }}`, `{{ worktree_path }}`, `{{ repo_path }}`
-
-**Setting up hooks for a project:**
-1. Create `.config/wt.toml` in project root
-2. Add hooks relevant to that project's stack
-3. Commit the file so team shares the config
 
 ## Don't
 
-- Never `git checkout` to switch branches - use `wt switch`
-- Never merge to main locally on team projects - create PR
-- Never commit directly to main - always use feature worktree
 - Never push to main without explicit permission in the session
-- Never batch up large changes - commit frequently
-- Never leave stale worktrees - `wt remove` after done
+- Never batch up large changes - commit frequently or use `compose`
+- Never skip `--accept` flag when running from Claude Code
