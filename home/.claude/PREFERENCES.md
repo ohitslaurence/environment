@@ -2,6 +2,7 @@
 
 ## Communication
 
+- Extremely concise - sacrifice grammar for brevity
 - Brief over verbose
 - Incremental changes reviewable in git diffs
 - Summarize completed work with decision rationale

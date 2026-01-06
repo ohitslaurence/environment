@@ -4,6 +4,7 @@
 
 - Always Read before Write or Edit
 - Use absolute paths only
+- Use `z` instead of `cd` for directory changes
 - Never commit unless explicitly requested
 
 ## Code Changes
