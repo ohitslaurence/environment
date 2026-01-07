@@ -27,6 +27,7 @@
 ✅ Validate before and after execution
 ✅ Follow existing project patterns
 ✅ Complete discovery before codebase-wide changes
+✅ Use `z` for directory navigation (NOT `cd`)
 
 ## Don't
 
@@ -35,3 +36,4 @@
 ❌ Ignore existing patterns
 ❌ Make assumptions about legacy code
 ❌ Expand scope beyond what's asked
+❌ Use `cd` - use `z` instead (zoxide)
