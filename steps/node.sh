@@ -26,9 +26,17 @@ echo ""
 echo "Node.js $(node --version) installed"
 
 echo ""
+echo "Enabling corepack and installing yarn v1..."
+corepack enable
+corepack prepare yarn@1 --activate
+
+echo ""
 echo "Installing pnpm..."
 if ! command -v pnpm &> /dev/null; then
     curl -fsSL https://get.pnpm.io/install.sh | sh -
 else
     echo "pnpm already installed"
 fi
+
+echo ""
+echo "Package managers: yarn $(yarn --version), pnpm $(pnpm --version 2>/dev/null || echo 'installing...')"
