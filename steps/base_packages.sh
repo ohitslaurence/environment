@@ -23,7 +23,9 @@ sudo apt install -y \
     zsh-autosuggestions \
     zsh-syntax-highlighting \
     unattended-upgrades \
-    apt-listchanges
+    apt-listchanges \
+    pkg-config \
+    libssl-dev
 
 # eza (modern ls replacement)
 if ! command -v eza &> /dev/null; then
