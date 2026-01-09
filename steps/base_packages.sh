@@ -81,6 +81,30 @@ if ! command -v lazydocker &> /dev/null; then
     curl https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash
 fi
 
+# Rust (for cargo-installed tools)
+if ! command -v cargo &> /dev/null; then
+    echo ""
+    echo "Installing Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+fi
+
+# mdcat (markdown renderer)
+if ! command -v mdcat &> /dev/null; then
+    echo ""
+    echo "Installing mdcat..."
+    source "$HOME/.cargo/env" 2>/dev/null || true
+    cargo install mdcat
+fi
+
+# lumen (AI-powered git tool)
+if ! command -v lumen &> /dev/null; then
+    echo ""
+    echo "Installing lumen..."
+    source "$HOME/.cargo/env" 2>/dev/null || true
+    cargo install lumen
+fi
+
 echo ""
 echo "Enabling automatic security updates..."
 sudo dpkg-reconfigure -plow unattended-upgrades
@@ -89,6 +113,7 @@ echo ""
 echo "Base packages installed:"
 echo "  Core: git, curl, wget, build-essential, unzip, jq, stow"
 echo "  Search: ripgrep, fd-find, fzf"
-echo "  Modern CLI: eza, bat, zoxide, atuin, direnv"
+echo "  Modern CLI: eza, bat, zoxide, atuin, direnv, mdcat"
 echo "  TUI: htop, neovim, lazygit, lazydocker"
-echo "  GitHub: gh"
+echo "  Git: gh, lumen"
+echo "  Rust: cargo"
