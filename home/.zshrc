@@ -265,3 +265,8 @@ fi
 # Cargo env (for Rust tools)
 [[ -f "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
 export PATH="$HOME/.local/nvim-linux-x86_64/bin:$PATH"
+
+# strix
+export PATH="/home/laurence/.strix/bin:$PATH"
+
+. "$HOME/.local/share/../bin/env"

@@ -10,7 +10,8 @@ DIM='\033[2m'
 NC='\033[0m'
 
 get_agents() {
-    ps aux --sort=-%mem | grep -E "[c]laude|[o]pencode" | grep -v "grep" || true
+    # Match only processes where the command (field 11) is claude/opencode binary
+    ps aux --sort=-%mem | awk '$11 ~ /^(claude|opencode)$/ || $11 ~ /\/(claude|opencode)$/' || true
 }
 
 format_time() {
@@ -32,26 +33,35 @@ list_agents() {
     fi
 
     echo -e "${CYAN}Running Agents${NC}"
-    echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    printf "${DIM}%-8s %-10s %-8s %-10s %s${NC}\n" "PID" "TYPE" "MEM" "TIME" "CWD"
-    echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    printf "${DIM}%-8s %-10s %-8s %-10s %-30s %s${NC}\n" "PID" "TYPE" "MEM" "TIME" "CWD" "CMD"
+    echo -e "${DIM}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
     echo "$agents" | while read -r line; do
         local pid=$(echo "$line" | awk '{print $2}')
         local mem=$(echo "$line" | awk '{print $4}')
-        local cmd=$(echo "$line" | awk '{print $11}')
+        local full_cmd=$(echo "$line" | awk '{for(i=11;i<=NF;i++) printf "%s ", $i}')
 
-        # Determine type
+        # Determine type from full command line
         local type="unknown"
-        if [[ "$cmd" == *"claude"* ]]; then
+        if [[ "$line" == *"claude"* ]]; then
             type="claude"
-        elif [[ "$cmd" == *"opencode"* ]]; then
+        fi
+        if [[ "$line" == *"opencode"* ]]; then
             type="opencode"
         fi
 
         # Get working directory
         local cwd=$(readlink -f /proc/$pid/cwd 2>/dev/null || echo "?")
         cwd=${cwd/#$HOME/\~}
+        # Truncate cwd for display
+        if [[ ${#cwd} -gt 28 ]]; then
+            cwd="...${cwd: -25}"
+        fi
+
+        # Truncate command for display
+        local cmd_display="${full_cmd:0:40}"
+        [[ ${#full_cmd} -gt 40 ]] && cmd_display="${cmd_display}..."
 
         # Get elapsed time
         local elapsed=$(ps -o etimes= -p $pid 2>/dev/null | tr -d ' ')
@@ -60,7 +70,7 @@ list_agents() {
             time_str=$(format_time $((elapsed / 60)))
         fi
 
-        printf "%-8s %-10s %-8s %-10s %s\n" "$pid" "$type" "${mem}%" "$time_str" "$cwd"
+        printf "%-8s %-10s %-8s %-10s %-30s %s\n" "$pid" "$type" "${mem}%" "$time_str" "$cwd" "$cmd_display"
     done
 
     echo ""
