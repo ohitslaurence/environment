@@ -237,6 +237,7 @@ alias ccu='npx ccusage@latest'
 alias lzd='lazydocker'
 alias sz='source ~/.zshrc'
 alias up='~/dev/environment/scripts/upgrade.sh'
+alias cleanup='~/dev/environment/scripts/cleanup.sh'
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Functions
@@ -270,3 +271,6 @@ export PATH="$HOME/.local/nvim-linux-x86_64/bin:$PATH"
 export PATH="/home/laurence/.strix/bin:$PATH"
 
 . "$HOME/.local/share/../bin/env"
+
+# bun completions
+[ -s "/home/laurence/.bun/_bun" ] && source "/home/laurence/.bun/_bun"
