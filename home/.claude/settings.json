@@ -3,5 +3,27 @@
     "type": "command",
     "command": "claude-powerline --style=powerline --theme=tokyo-night"
   },
-  "model": "opus"
+  "model": "opus",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/todo-enforcer.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/keyword-detector.py"
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -41,9 +41,10 @@ fi
 # Stow dotfiles
 stow -v -R -t ~ home
 
-# Post-stow symlinks (stow doesn't handle symlinks between stowed files well)
+# Post-stow symlinks (stow doesn't handle nested dirs in existing directories well)
 mkdir -p ~/.config/opencode
 ln -sf ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md
+ln -sfn ~/dev/environment/home/.claude/hooks ~/.claude/hooks
 
 echo ""
 echo "═══════════════════════════════════════════════════════════"

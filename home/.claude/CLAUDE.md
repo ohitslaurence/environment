@@ -15,6 +15,9 @@ System prompt > repo AGENTS.md > these defaults.
 - When uncertain: stop and ask
 - Follow repo conventions over personal defaults
 - Raise concerns if user's approach seems problematic; propose alternative
+- Don't write code before stating assumptions
+- Don't claim correctness you haven't verified
+- Don't handle only the happy path
 
 ## Rules
 
