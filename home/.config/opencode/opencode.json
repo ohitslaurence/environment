@@ -4,7 +4,7 @@
       "type": "remote",
       "url": "https://apigcp.trynia.ai/mcp",
       "headers": {
-        "Authorization": "Bearer nk_0AoemX4cLmAYvNYCTQCxYGhem54PQOvj"
+        "Authorization": "Bearer ${NIA_API_KEY}"
       },
       "enabled": true,
       "oauth": false
