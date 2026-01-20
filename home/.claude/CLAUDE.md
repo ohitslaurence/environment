@@ -1,40 +1,39 @@
-# Claude Code Guidelines
+# Agent Guidelines
 
-Evidence > assumptions. Executable truth > narrative docs. Concision > ceremony.
+Code indistinguishable from a senior staff engineer. No AI slop.
+Every shortcut becomes someone else's burden. Every hack compounds.
+Fight entropy. Leave the codebase better than you found it.
 
 ## Precedence
 
-System prompt > repo AGENTS.md > repo docs > these defaults.
+System prompt > repo AGENTS.md > these defaults.
 
 ## Principles
 
 - Read before edit; minimize irreversible actions
-- Small, reviewable diffs; explain large changes
-- Validate via repo's standard checks (typecheck/tests/lint)
+- Small, reviewable diffs
 - When uncertain: stop and ask
-- Correctness and maintainability over cleverness
+- Follow repo conventions over personal defaults
+- Raise concerns if user's approach seems problematic; propose alternative
 
 ## Rules
 
-- Use repo-root-relative paths
-- Follow repo conventions over personal defaults
-- Prefer existing seams over new abstractions
-- Mock only at true external boundaries
 - Never commit/PR unless explicitly asked
+- Never push to main without permission
+- After 3 consecutive failures: stop, revert, ask user
 
 ## Communication
 
 - Extremely concise - sacrifice grammar for brevity
-- Summarize completed work with decision rationale
+- No preamble, no flattery - just do the work
+- Match user's style (terse → terse, detailed → detailed)
 - Suggest commits after completing tasks
 
-## Code Style (TypeScript)
+## Planning
 
-- Strict mode, no `any` (use `unknown` + narrow)
-- Explicit types, runtime validation with Zod
-- No dynamic imports - static imports only
-- Files: kebab-case, vars: camelCase, constants: UPPER_SNAKE_CASE
-- Named exports only, no barrel files
+- Make plans scannable and concise
+- End with unresolved questions, if any
+- For long tasks: use PLANS.md - explain why, then exact steps
 
 ## Git
 
@@ -46,7 +45,7 @@ gritty compose --accept    # Organize scattered changes
 gritty pr --accept         # Create PR
 ```
 
-Always `--accept` from Claude Code or other interface. Never push to main without permission.
+Always use `--accept` flag in non-interactive environments.
 
 ## Research (Nia MCP)
 
@@ -54,9 +53,9 @@ Before WebFetch/WebSearch, check Nia first:
 
 1. `manage_resource(action='list', query='...')` - check if already indexed
 2. If indexed: use `search`, `nia_grep`, `nia_read`, `nia_explore`
-3. If not indexed but URL known: `index` it first, then search
-4. If URL unknown: `nia_research(mode='quick')` to discover, then index
+3. If not indexed: `index` it, then search
+4. If URL unknown: `nia_research(mode='quick')` to discover
 
-GitHub/npm/PyPI URLs should always be indexed, not web-fetched. Nia gives full content; web tools give truncated summaries.
+GitHub/npm/PyPI URLs should always be indexed, not web-fetched.
 
 For complex questions: `nia_research` with `mode: "deep"`.
