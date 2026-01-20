@@ -41,6 +41,10 @@ fi
 # Stow dotfiles
 stow -v -R -t ~ home
 
+# Post-stow symlinks (stow doesn't handle symlinks between stowed files well)
+mkdir -p ~/.config/opencode
+ln -sf ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md
+
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "                    Git Configuration"

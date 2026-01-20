@@ -3,17 +3,15 @@
     "nia": {
       "type": "remote",
       "url": "https://apigcp.trynia.ai/mcp",
-      "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${NIA_API_KEY}"
-      }
+        "Authorization": "Bearer nk_0AoemX4cLmAYvNYCTQCxYGhem54PQOvj"
+      },
+      "enabled": true,
+      "oauth": false
     }
   },
   "instructions": [
-    "~/.claude/PRINCIPLES.md",
-    "~/.claude/RULES.md",
-    "~/.claude/PREFERENCES.md",
-    "~/.claude/GIT.md"
+    "~/.claude/CLAUDE.md",
   ],
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
 }

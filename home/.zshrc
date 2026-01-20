@@ -156,9 +156,15 @@ elif command -v bat &> /dev/null; then
     alias cat="bat --paging=never"
 fi
 
-# zoxide
+# zoxide - use z when available, fallback to builtin cd
 if command -v zoxide &> /dev/null; then
-    alias cd="z"
+    function cd() {
+        if (( $+functions[__zoxide_z] )); then
+            __zoxide_z "$@"
+        else
+            builtin cd "$@"
+        fi
+    }
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════

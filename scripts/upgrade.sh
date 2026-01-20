@@ -56,6 +56,13 @@ else
     results+=("${YELLOW}○${NC} Gritty (not installed)")
 fi
 
+# Strix (AI pentest agents)
+if command -v strix &> /dev/null; then
+    upgrade_tool "Strix" "curl -sSL https://strix.ai/install | bash"
+else
+    results+=("${YELLOW}○${NC} Strix (not installed)")
+fi
+
 # tmux plugins (if TPM is installed)
 if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
     upgrade_tool "tmux plugins" "$HOME/.tmux/plugins/tpm/bin/update_plugins all"
