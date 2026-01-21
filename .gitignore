@@ -18,4 +18,10 @@ Thumbs.db
 id_rsa*
 id_ed25519*
 
+# Generated configs with secrets
+home/.config/opencode/opencode.json
+
+# Hook runtime files
+home/.claude/hooks/*.log
+
 strix_runs

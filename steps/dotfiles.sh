@@ -46,6 +46,15 @@ mkdir -p ~/.config/opencode
 ln -sf ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md
 ln -sfn ~/dev/environment/home/.claude/hooks ~/.claude/hooks
 
+# Generate opencode.json from template (contains API keys via env vars)
+if [[ -n "${NIA_API_KEY:-}" ]]; then
+    envsubst < "$REPO_DIR/home/.config/opencode/opencode.json.template" > ~/.config/opencode/opencode.json
+    echo "Generated ~/.config/opencode/opencode.json from template"
+else
+    echo "Warning: NIA_API_KEY not set, skipping opencode.json generation"
+    echo "Set NIA_API_KEY in ~/.zshrc.local and re-run this step"
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════════════════"
 echo "                    Git Configuration"
