@@ -5,7 +5,7 @@
       "type": "url",
       "url": "https://apigcp.trynia.ai/mcp",
       "headers": {
-        "Authorization": "Bearer nk_bffBHNJIoHJJgJHYnuH5hIBRh0gB9sw1"
+        "Authorization": "Bearer ${NIA_API_KEY}"
       }
     }
   },

@@ -20,6 +20,7 @@ id_ed25519*
 
 # Generated configs with secrets
 home/.config/opencode/opencode.json
+home/.claude/settings.json
 
 # Hook runtime files
 home/.claude/hooks/*.log
