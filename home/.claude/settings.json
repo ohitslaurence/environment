@@ -1,14 +1,5 @@
 {
   "model": "opus",
-  "mcpServers": {
-    "nia": {
-      "type": "url",
-      "url": "https://apigcp.trynia.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer nk_bffBHNJIoHJJgJHYnuH5hIBRh0gB9sw1"
-      }
-    }
-  },
   "hooks": {
     "Stop": [
       {
@@ -36,6 +27,17 @@
     "command": "claude-powerline --style=powerline --theme=tokyo-night"
   },
   "enabledPlugins": {
-    "rust-analyzer-lsp@claude-plugins-official": true
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "spritz@spritz-claude": true
+  },
+  "skipDangerousModePermissionPrompt": true,
+  "mcpServers": {
+    "nia": {
+      "type": "url",
+      "url": "https://apigcp.trynia.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer nk_bffBHNJIoHJJgJHYnuH5hIBRh0gB9sw1"
+      }
+    }
   }
 }
