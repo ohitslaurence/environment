@@ -47,6 +47,17 @@ ln -sf ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md
 ln -sf ~/.claude/CLAUDE.md ~/.codex/AGENTS.md
 ln -sfn ~/dev/environment/home/.claude/hooks ~/.claude/hooks
 
+# Codex MCP config (idempotent - appends if missing)
+if ! grep -q '\[mcp_servers\.nia\]' ~/.codex/config.toml 2>/dev/null; then
+    cat >> ~/.codex/config.toml << 'EOF'
+
+[mcp_servers.nia]
+url = "https://apigcp.trynia.ai/mcp"
+bearer_token_env_var = "NIA_API_KEY"
+EOF
+    echo "Added Nia MCP to ~/.codex/config.toml"
+fi
+
 # Generate configs from templates (contains API keys via env vars)
 if [[ -n "${NIA_API_KEY:-}" ]]; then
     envsubst '$NIA_API_KEY' < "$REPO_DIR/home/.config/opencode/opencode.json.template" > ~/.config/opencode/opencode.json
