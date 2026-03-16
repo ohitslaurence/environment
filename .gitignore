@@ -1,5 +1,6 @@
 # Local overrides
 *.local
+!home/.local/
 
 # OS files
 .DS_Store

@@ -1,0 +1,749 @@
+#!/usr/bin/env node
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const readline = require("node:readline/promises");
+const { spawnSync } = require("node:child_process");
+
+const WORK_REPOS_FILE =
+  process.env.WORK_REPOS_FILE ||
+  path.join(os.homedir(), ".config", "work", "repos.tsv");
+const PAR_STATE_FILE =
+  process.env.WORK_PAR_STATE_FILE ||
+  path.join(os.homedir(), ".local", "share", "par", "global_state.json");
+const DEFAULT_WINDOWS = ["shell", "agent", "run", "notes"];
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    await cmdDashboard();
+    return;
+  }
+
+  const [command, ...rest] = args;
+
+  switch (command) {
+    case "help":
+    case "--help":
+    case "-h":
+      printHelp();
+      return;
+    case "ls":
+      requireCommand("par");
+      runInherit("par", ["ls"]);
+      return;
+    case "branch":
+      await cmdBranch(rest);
+      return;
+    case "cross":
+      cmdCross(rest);
+      return;
+    case "done":
+      cmdDone(rest);
+      return;
+    case "refresh":
+      cmdRefresh(rest);
+      return;
+    case "save":
+      requireInsideGitRepo("work save");
+      requireCommand("gritty");
+      runInherit("gritty", ["commit", "--accept"]);
+      return;
+    case "pr":
+      requireInsideGitRepo("work pr");
+      requireCommand("gritty");
+      runInherit("gritty", ["pr", "--accept"]);
+      if (hasCommand("gh")) {
+        runInherit("gh", ["pr", "checks"]);
+      }
+      return;
+    case "sync":
+      cmdSync();
+      return;
+    default:
+      await cmdRepo(command, rest);
+  }
+}
+
+function printHelp() {
+  console.log(`work: task-first wrapper around par + tmux + gritty
+
+Usage:
+  work
+  work <repo> [task]
+  work branch <task>
+  work cross <task> <repo> [repo...]
+  work ls
+  work sync
+  work refresh [repo]
+  work save
+  work pr
+  work done [label]
+
+Config:
+  ${WORK_REPOS_FILE}
+
+repos.tsv format:
+  alias<TAB>path<TAB>default_branch
+
+Example:
+  rain<TAB>~/code/rain<TAB>main
+  reaper<TAB>~/code/reaper<TAB>main
+`);
+}
+
+async function cmdDashboard() {
+  requireCommand("par");
+
+  const repos = loadRepos();
+  const state = loadState();
+  const labels = sortedLabels(state);
+
+  if (labels.length === 0) {
+    console.log("No active contexts.");
+    await openRepoFromDashboard(repos);
+    return;
+  }
+
+  if (hasCommand("fzf")) {
+    const options = [
+      ...labels.map((label) => `context\t${label}`),
+      ...Object.keys(repos)
+        .sort()
+        .map((alias) => `repo\t${alias}`),
+    ];
+    const picked = runFzf(options, "work> ");
+    if (!picked) {
+      return;
+    }
+
+    const [kind, value] = picked.split("\t");
+    if (kind === "context") {
+      openLabel(value);
+      return;
+    }
+
+    if (kind === "repo") {
+      await cmdRepo(value, []);
+      return;
+    }
+  }
+
+  runInherit("par", ["ls"]);
+  console.log("\nRun `work <repo>` to open or create a task.");
+}
+
+async function openRepoFromDashboard(repos) {
+  const aliases = Object.keys(repos).sort();
+  if (aliases.length === 0) {
+    fail(
+      `No repos configured. Create ${WORK_REPOS_FILE} first.`,
+      1,
+    );
+  }
+
+  if (hasCommand("fzf")) {
+    const picked = runFzf(aliases, "repo> ");
+    if (!picked) {
+      return;
+    }
+    await cmdRepo(picked, []);
+    return;
+  }
+
+  console.log("Configured repos:");
+  for (const alias of aliases) {
+    console.log(`  ${alias}`);
+  }
+  console.log("\nRun `work <repo>` to start.");
+}
+
+async function cmdRepo(alias, rest) {
+  requireCommand("par");
+
+  const repos = loadRepos();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${WORK_REPOS_FILE}.`);
+  }
+
+  const taskArg = rest[0];
+  if (taskArg) {
+    createOrOpenSingleRepoContext(alias, normalizeTask(taskArg), repo);
+    return;
+  }
+
+  const state = loadState();
+  const activeLabels = labelsForRepo(alias, state);
+
+  if (activeLabels.length === 1) {
+    openLabel(activeLabels[0]);
+    return;
+  }
+
+  if (activeLabels.length > 1 && hasCommand("fzf")) {
+    const picked = runFzf(
+      [...activeLabels, "[new task]"],
+      `${alias}> `,
+    );
+    if (!picked) {
+      return;
+    }
+    if (picked !== "[new task]") {
+      openLabel(picked);
+      return;
+    }
+  } else if (activeLabels.length > 1) {
+    console.log(`Active ${alias} contexts:`);
+    for (const label of activeLabels) {
+      console.log(`  ${label}`);
+    }
+  }
+
+  const task = await promptText(`Task for ${alias}: `);
+  createOrOpenSingleRepoContext(alias, normalizeTask(task), repo);
+}
+
+async function cmdBranch(rest) {
+  if (rest.length === 0) {
+    fail("Usage: work branch <task>");
+  }
+
+  const alias = inferCurrentRepoAlias();
+  const repos = loadRepos();
+  const repo = repos[alias];
+  createOrOpenSingleRepoContext(alias, normalizeTask(rest[0]), repo);
+}
+
+function cmdCross(rest) {
+  requireCommand("par");
+
+  if (rest.length < 2) {
+    fail("Usage: work cross <task> <repo> [repo...]");
+  }
+
+  const task = normalizeTask(rest[0]);
+  const repoAliases = [...new Set(rest.slice(1))];
+  const repos = loadRepos();
+  const selectedRepos = repoAliases.map((alias) => {
+    const repo = repos[alias];
+    if (!repo) {
+      fail(`Unknown repo '${alias}'. Add it to ${WORK_REPOS_FILE}.`);
+    }
+    return { alias, ...repo };
+  });
+
+  const state = loadState();
+  if (state.sessions?.[task]) {
+    openLabel(task);
+    return;
+  }
+
+  for (const repo of selectedRepos) {
+    refreshCanonicalRepo(repo.alias, repo);
+  }
+
+  const workspaceRoot = commonAncestor(selectedRepos.map((repo) => repo.path));
+  const repoSpec = selectedRepos.map((repo) => repo.path).join(",");
+
+  runInherit("par", [
+    "workspace",
+    "start",
+    task,
+    "--path",
+    workspaceRoot,
+    "--repos",
+    repoSpec,
+  ]);
+  ensureLayout(task);
+  openLabel(task);
+}
+
+function cmdDone(rest) {
+  requireCommand("par");
+
+  const label = rest[0] || currentLabel();
+  if (!label) {
+    fail("No current context found. Pass a label: work done <label>");
+  }
+
+  runInherit("par", ["rm", label]);
+}
+
+function cmdRefresh(rest) {
+  const repos = loadRepos();
+  const alias = rest[0] || inferCurrentRepoAlias();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${WORK_REPOS_FILE}.`);
+  }
+
+  refreshCanonicalRepo(alias, repo);
+}
+
+function cmdSync() {
+  requireInsideGitRepo("work sync");
+
+  const repos = loadRepos();
+  const alias = inferCurrentRepoAlias();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${WORK_REPOS_FILE}.`);
+  }
+
+  const repoRoot = gitTopLevel();
+  assertClean(repoRoot, "Commit or stash changes before work sync.");
+  requireCommand("git");
+
+  runInherit("git", ["-C", repoRoot, "fetch", "origin", repo.base]);
+
+  const currentBranch = currentBranchName(repoRoot);
+  if (!currentBranch) {
+    fail("Detached HEAD. Checkout a branch before running work sync.");
+  }
+
+  if (currentBranch === repo.base) {
+    runInherit("git", ["-C", repoRoot, "pull", "--ff-only", "origin", repo.base]);
+    return;
+  }
+
+  runInherit("git", ["-C", repoRoot, "rebase", `origin/${repo.base}`]);
+}
+
+function createOrOpenSingleRepoContext(alias, task, repo) {
+  const label = `${alias}.${task}`;
+  const state = loadState();
+
+  if (state.sessions?.[label]) {
+    openLabel(label);
+    return;
+  }
+
+  refreshCanonicalRepo(alias, repo);
+  runInherit("par", [
+    "start",
+    label,
+    "--path",
+    repo.path,
+    "--base",
+    repo.base,
+  ]);
+  ensureLayout(label);
+  openLabel(label);
+}
+
+function openLabel(label) {
+  ensureLayout(label);
+  runInherit("par", ["open", label]);
+}
+
+function ensureLayout(label) {
+  const state = loadState();
+  const session = state.sessions?.[label];
+  if (!session) {
+    return;
+  }
+
+  if (session.session_type === "workspace") {
+    ensureWorkspaceLayout(session);
+    return;
+  }
+
+  ensureSessionWindows(session.tmux_session_name, session.worktree_path, DEFAULT_WINDOWS);
+}
+
+function ensureWorkspaceLayout(session) {
+  const tmuxSession = session.tmux_session_name;
+  const workspaceRoot = session.worktree_path;
+  const repoWindows =
+    session.workspace_repos?.map((repo) => ({
+      name: repo.repo_name,
+      cwd: repo.worktree_path,
+    })) || [];
+
+  ensureSessionWindows(tmuxSession, workspaceRoot, [
+    "shell",
+    ...repoWindows.map((repo) => repo.name),
+    "agent",
+    "run",
+    "notes",
+  ], repoWindows);
+}
+
+function ensureSessionWindows(tmuxSession, defaultCwd, windows, extraWindows = []) {
+  requireCommand("tmux");
+  const existing = listTmuxWindows(tmuxSession);
+  if (existing.length === 0) {
+    return;
+  }
+
+  runQuiet("tmux", ["rename-window", "-t", `${tmuxSession}:0`, "shell"]);
+
+  const namedWindows = new Map(extraWindows.map((window) => [window.name, window.cwd]));
+  for (const name of windows) {
+    if (name === "shell") {
+      continue;
+    }
+    if (existing.includes(name)) {
+      continue;
+    }
+    runQuiet("tmux", [
+      "new-window",
+      "-t",
+      tmuxSession,
+      "-n",
+      name,
+      "-c",
+      namedWindows.get(name) || defaultCwd,
+    ]);
+  }
+}
+
+function listTmuxWindows(tmuxSession) {
+  const result = runCapture("tmux", [
+    "list-windows",
+    "-t",
+    tmuxSession,
+    "-F",
+    "#W",
+  ], { check: false });
+
+  if (result.status !== 0) {
+    return [];
+  }
+
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function refreshCanonicalRepo(alias, repo) {
+  requireCommand("git");
+
+  assertClean(
+    repo.path,
+    `Canonical clone ${alias} is dirty. Clean it before branching from ${repo.base}.`,
+  );
+
+  runInherit("git", ["-C", repo.path, "fetch", "origin", repo.base]);
+
+  if (!localBranchExists(repo.path, repo.base)) {
+    runInherit("git", [
+      "-C",
+      repo.path,
+      "switch",
+      "--create",
+      repo.base,
+      "--track",
+      `origin/${repo.base}`,
+    ]);
+  } else if (currentBranchName(repo.path) !== repo.base) {
+    runInherit("git", ["-C", repo.path, "switch", repo.base]);
+  }
+
+  runInherit("git", ["-C", repo.path, "pull", "--ff-only", "origin", repo.base]);
+}
+
+function localBranchExists(repoPath, branch) {
+  const result = runCapture(
+    "git",
+    ["-C", repoPath, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+    { check: false },
+  );
+  return result.status === 0;
+}
+
+function currentBranchName(repoPath) {
+  return runCapture("git", ["-C", repoPath, "branch", "--show-current"]).stdout.trim();
+}
+
+function assertClean(repoPath, message) {
+  const status = runCapture("git", ["-C", repoPath, "status", "--porcelain"]).stdout.trim();
+  if (status) {
+    fail(message);
+  }
+}
+
+function inferCurrentRepoAlias() {
+  const repos = loadRepos();
+  const current = gitTopLevel();
+  const currentBranch = currentBranchName(current);
+
+  if (currentBranch.includes(".")) {
+    const [alias] = currentBranch.split(".", 1);
+    if (repos[alias]) {
+      return alias;
+    }
+  }
+
+  for (const [alias, repo] of Object.entries(repos)) {
+    if (samePath(repo.path, current)) {
+      return alias;
+    }
+  }
+
+  const remoteName = originRepoName(current);
+  if (remoteName && repos[remoteName]) {
+    return remoteName;
+  }
+
+  fail(
+    "Could not infer the current repo alias. Run from a configured repo or branch created by work.",
+  );
+}
+
+function originRepoName(repoPath) {
+  const remote = runCapture(
+    "git",
+    ["-C", repoPath, "config", "--get", "remote.origin.url"],
+    { check: false },
+  ).stdout.trim();
+
+  if (!remote) {
+    return "";
+  }
+
+  const normalized = remote.replace(/\.git$/, "");
+  const segments = normalized.split(/[/:]/);
+  return segments[segments.length - 1] || "";
+}
+
+function currentLabel() {
+  const state = loadState();
+  const tmuxSession = currentTmuxSession();
+  if (tmuxSession) {
+    for (const [label, session] of Object.entries(state.sessions || {})) {
+      if (session.tmux_session_name === tmuxSession) {
+        return label;
+      }
+    }
+  }
+
+  try {
+    const topLevel = gitTopLevel();
+    for (const [label, session] of Object.entries(state.sessions || {})) {
+      if (samePath(session.worktree_path, topLevel)) {
+        return label;
+      }
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function currentTmuxSession() {
+  if (!process.env.TMUX) {
+    return "";
+  }
+
+  return runCapture(
+    "tmux",
+    ["display-message", "-p", "#S"],
+    { check: false },
+  ).stdout.trim();
+}
+
+function labelsForRepo(alias, state) {
+  return sortedLabels(state).filter((label) => {
+    const session = state.sessions?.[label];
+    return session?.session_type !== "workspace" && session?.repository_name === alias;
+  });
+}
+
+function sortedLabels(state) {
+  return Object.keys(state.sessions || {}).sort();
+}
+
+function loadState() {
+  try {
+    const raw = fs.readFileSync(PAR_STATE_FILE, "utf8").trim();
+    if (!raw) {
+      return { sessions: {} };
+    }
+    return JSON.parse(raw);
+  } catch {
+    return { sessions: {} };
+  }
+}
+
+function loadRepos() {
+  if (!fs.existsSync(WORK_REPOS_FILE)) {
+    fail(
+      `Missing ${WORK_REPOS_FILE}. Create it with: alias<TAB>path<TAB>default_branch`,
+    );
+  }
+
+  const repos = {};
+  const lines = fs.readFileSync(WORK_REPOS_FILE, "utf8").split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const [alias, repoPath, base = "main"] = trimmed.split("\t");
+    if (!alias || !repoPath) {
+      fail(`Invalid repos.tsv line: ${line}`);
+    }
+
+    repos[alias] = {
+      path: expandHome(repoPath),
+      base,
+    };
+  }
+
+  return repos;
+}
+
+function gitTopLevel() {
+  const result = runCapture("git", ["rev-parse", "--show-toplevel"], { check: false });
+  if (result.status !== 0) {
+    fail("Not inside a git repository.");
+  }
+  return result.stdout.trim();
+}
+
+function requireInsideGitRepo(commandName) {
+  const result = runCapture("git", ["rev-parse", "--show-toplevel"], { check: false });
+  if (result.status !== 0) {
+    fail(`${commandName} must run inside a git repository.`);
+  }
+}
+
+function hasCommand(command) {
+  const result = spawnSync("sh", ["-c", `command -v "${command}" >/dev/null 2>&1`], {
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
+
+function requireCommand(command) {
+  if (!hasCommand(command)) {
+    fail(`Missing required command: ${command}`);
+  }
+}
+
+function runFzf(options, prompt) {
+  const result = spawnSync("fzf", ["--prompt", prompt], {
+    input: options.join("\n"),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+
+  if (result.status !== 0) {
+    return "";
+  }
+
+  return result.stdout.trim();
+}
+
+async function promptText(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return rl.question(question).then((answer) => {
+    rl.close();
+    return answer.trim();
+  });
+}
+
+function normalizeTask(task) {
+  const normalized = task
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  if (!normalized) {
+    fail("Task cannot be empty.");
+  }
+
+  return normalized;
+}
+
+function expandHome(value) {
+  if (value.startsWith("~/")) {
+    return path.join(os.homedir(), value.slice(2));
+  }
+  return value;
+}
+
+function commonAncestor(pathsToCheck) {
+  const splitPaths = pathsToCheck.map((value) => path.resolve(value).split(path.sep));
+  const shortest = Math.min(...splitPaths.map((segments) => segments.length));
+  const common = [];
+
+  for (let index = 0; index < shortest; index += 1) {
+    const segment = splitPaths[0][index];
+    if (splitPaths.every((segments) => segments[index] === segment)) {
+      common.push(segment);
+      continue;
+    }
+    break;
+  }
+
+  if (common.length === 0) {
+    return path.parse(pathsToCheck[0]).root;
+  }
+
+  return common.join(path.sep) || path.sep;
+}
+
+function samePath(left, right) {
+  return path.resolve(left) === path.resolve(right);
+}
+
+function runInherit(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    stdio: "inherit",
+    cwd: options.cwd,
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    process.exit(result.status || 1);
+  }
+}
+
+function runQuiet(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    stdio: "ignore",
+    cwd: options.cwd,
+    env: process.env,
+  });
+  return result.status === 0;
+}
+
+function runCapture(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    cwd: options.cwd,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  if (options.check !== false && result.status !== 0) {
+    fail((result.stderr || `Command failed: ${command} ${args.join(" ")}`).trim());
+  }
+
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+  };
+}
+
+function fail(message, code = 1) {
+  console.error(`work: ${message}`);
+  process.exit(code);
+}
+
+main().catch((error) => {
+  fail(error?.message || String(error));
+});
