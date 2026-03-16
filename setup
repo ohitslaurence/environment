@@ -129,6 +129,7 @@ init_state() {
   "syncthing": false,
   "aws_sso": false,
   "gritty": false,
+  "par": false,
   "nia_mcp": false
 }
 EOF
@@ -176,6 +177,7 @@ build_menu() {
     echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
     echo "$(status_icon gritty) Gritty - AI-powered Git CLI"
+    echo "$(status_icon par) Par - Parallel worktree & session manager"
     echo ""
     gum style --faint "Optional (not in Run All):"
     echo "$(status_icon nia_mcp) Nia MCP - AI tools for Claude/OpenCode"
@@ -286,6 +288,7 @@ run_all_remaining() {
         "syncthing"
         "aws_sso"
         "gritty"
+        "par"
     )
 
     for step in "${steps[@]}"; do
@@ -326,6 +329,7 @@ select_steps() {
         "syncthing:Syncthing"
         "aws_sso:AWS SSO"
         "gritty:Gritty"
+        "par:Par"
         "nia_mcp:Nia MCP (optional)"
     )
 

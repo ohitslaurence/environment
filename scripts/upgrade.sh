@@ -63,6 +63,13 @@ else
     results+=("${YELLOW}○${NC} Strix (not installed)")
 fi
 
+# Par (parallel worktree & session manager)
+if command -v par &> /dev/null; then
+    upgrade_tool "Par" "uv tool upgrade par-cli"
+else
+    results+=("${YELLOW}○${NC} Par (not installed)")
+fi
+
 # tmux plugins (if TPM is installed)
 if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
     upgrade_tool "tmux plugins" "$HOME/.tmux/plugins/tpm/bin/update_plugins all"
