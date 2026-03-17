@@ -107,6 +107,11 @@ if [[ -d "$HOME/.local/share/pnpm" ]]; then
     path=($PNPM_HOME $path)
 fi
 
+# mise (runtime manager)
+if command -v mise &> /dev/null; then
+    eval "$(mise activate zsh)"
+fi
+
 # zoxide (smarter cd)
 if command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"
@@ -237,6 +242,14 @@ tw() {
         fi
     fi
 }
+
+# lumen code review
+lrs() { lumen diff "${1:-origin/main}..HEAD" --stacked; }
+lrd() { lumen diff "${1:-origin/main}..HEAD"; }
+lrc() { lumen diff "${1:-HEAD~1}"; }
+
+# git log for current branch
+gls() { git log --oneline --decorate --graph "${1:-origin/main}..HEAD"; }
 
 alias c='claude'
 alias ccu='npx ccusage@latest'
