@@ -272,7 +272,36 @@ function cmdDone(rest) {
     fail("No current context found. Pass a label: work done <label>");
   }
 
+  // If we're inside the session being removed, switch away first
+  const state = loadState();
+  const session = state.sessions?.[label];
+  const currentTmux = currentTmuxSession();
+  if (currentTmux && session?.tmux_session_name === currentTmux) {
+    const target = pickFallbackSession(currentTmux);
+    if (target) {
+      runQuiet("tmux", ["switch-client", "-t", target]);
+    }
+  }
+
   runInherit("par", ["rm", label]);
+}
+
+function pickFallbackSession(exclude) {
+  const result = runCapture("tmux", ["list-sessions", "-F", "#S"], { check: false });
+  if (result.status !== 0) {
+    return "";
+  }
+
+  const sessions = result.stdout.split("\n").map((s) => s.trim()).filter((s) => s && s !== exclude);
+  if (sessions.length === 0) {
+    return "";
+  }
+
+  // prefer "spritz", then first available
+  if (sessions.includes("spritz")) {
+    return "spritz";
+  }
+  return sessions[0];
 }
 
 function cmdRefresh(rest) {
