@@ -60,6 +60,9 @@ async function main() {
         runInherit("gh", ["pr", "checks"]);
       }
       return;
+    case "bootstrap":
+      cmdBootstrap();
+      return;
     case "sync":
       cmdSync();
       return;
@@ -79,6 +82,7 @@ Usage:
   work ls
   work sync
   work refresh [repo]
+  work bootstrap
   work save
   work pr
   work done [label]
@@ -260,6 +264,15 @@ function cmdCross(rest) {
     "--repos",
     repoSpec,
   ]);
+
+  const freshState = loadState();
+  const wsSession = freshState.sessions?.[task];
+  if (wsSession?.workspace_repos) {
+    for (const repo of wsSession.workspace_repos) {
+      bootstrapWorktree(repo.worktree_path);
+    }
+  }
+
   ensureLayout(task);
   openLabel(task);
 }
@@ -344,6 +357,45 @@ function cmdSync() {
   runInherit("git", ["-C", repoRoot, "rebase", `origin/${repo.base}`]);
 }
 
+function cmdBootstrap() {
+  requireInsideGitRepo("work bootstrap");
+  bootstrapWorktree(gitTopLevel());
+}
+
+const LOCKFILE_COMMANDS = [
+  { file: "bun.lock", cmd: ["bun", "install"] },
+  { file: "bun.lockb", cmd: ["bun", "install"] },
+  { file: "pnpm-lock.yaml", cmd: ["pnpm", "install", "--frozen-lockfile"] },
+  { file: "yarn.lock", cmd: ["yarn", "install"] },
+  { file: "package-lock.json", cmd: ["npm", "ci"] },
+];
+
+function bootstrapWorktree(worktreePath) {
+  const resolved = path.resolve(worktreePath);
+
+  if (fs.existsSync(path.join(resolved, ".par.yaml"))) {
+    console.log(`bootstrap: ${resolved} has .par.yaml, skipping generic bootstrap`);
+    return;
+  }
+
+  for (const { file, cmd } of LOCKFILE_COMMANDS) {
+    if (fs.existsSync(path.join(resolved, file))) {
+      console.log(`bootstrap: found ${file}, running ${cmd.join(" ")}`);
+      const result = spawnSync(cmd[0], cmd.slice(1), {
+        stdio: "inherit",
+        cwd: resolved,
+        env: process.env,
+      });
+      if (result.status !== 0) {
+        console.error(`bootstrap: ${cmd.join(" ")} failed (exit ${result.status})`);
+      }
+      return;
+    }
+  }
+
+  console.log(`bootstrap: no lockfile found in ${resolved}, nothing to do`);
+}
+
 function createOrOpenSingleRepoContext(alias, task, repo) {
   const label = `${alias}${LABEL_SEP}${task}`;
   const state = loadState();
@@ -362,6 +414,13 @@ function createOrOpenSingleRepoContext(alias, task, repo) {
     "--base",
     repo.base,
   ]);
+
+  const freshState = loadState();
+  const session = freshState.sessions?.[label];
+  if (session?.worktree_path) {
+    bootstrapWorktree(session.worktree_path);
+  }
+
   ensureLayout(label);
   openLabel(label);
 }
