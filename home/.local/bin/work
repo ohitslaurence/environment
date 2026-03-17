@@ -12,7 +12,7 @@ const WORK_REPOS_FILE =
 const PAR_STATE_FILE =
   process.env.WORK_PAR_STATE_FILE ||
   path.join(os.homedir(), ".local", "share", "par", "global_state.json");
-const DEFAULT_WINDOWS = ["shell", "agent", "run", "notes"];
+const DEFAULT_WINDOWS = ["shell", "agent"];
 const LABEL_SEP = "__";
 
 async function main() {
@@ -370,8 +370,6 @@ function ensureWorkspaceLayout(session) {
     "shell",
     ...repoWindows.map((repo) => repo.name),
     "agent",
-    "run",
-    "notes",
   ], repoWindows);
 }
 
