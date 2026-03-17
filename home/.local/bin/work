@@ -13,6 +13,7 @@ const PAR_STATE_FILE =
   process.env.WORK_PAR_STATE_FILE ||
   path.join(os.homedir(), ".local", "share", "par", "global_state.json");
 const DEFAULT_WINDOWS = ["shell", "agent", "run", "notes"];
+const LABEL_SEP = "__";
 
 async function main() {
   const args = process.argv.slice(2);
@@ -87,6 +88,8 @@ Config:
 
 repos.tsv format:
   alias<TAB>path<TAB>default_branch
+
+Labels use repo__task format (e.g. rain__fix-auth)
 
 Example:
   rain<TAB>~/code/rain<TAB>main
@@ -313,7 +316,7 @@ function cmdSync() {
 }
 
 function createOrOpenSingleRepoContext(alias, task, repo) {
-  const label = `${alias}.${task}`;
+  const label = `${alias}${LABEL_SEP}${task}`;
   const state = loadState();
 
   if (state.sessions?.[label]) {
@@ -472,6 +475,14 @@ function inferCurrentRepoAlias() {
   const current = gitTopLevel();
   const currentBranch = currentBranchName(current);
 
+  if (currentBranch.includes(LABEL_SEP)) {
+    const [alias] = currentBranch.split(LABEL_SEP, 1);
+    if (repos[alias]) {
+      return alias;
+    }
+  }
+
+  // backward compat: old dot-separated labels
   if (currentBranch.includes(".")) {
     const [alias] = currentBranch.split(".", 1);
     if (repos[alias]) {
@@ -657,7 +668,7 @@ function normalizeTask(task) {
   const normalized = task
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
 
