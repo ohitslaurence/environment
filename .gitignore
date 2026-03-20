@@ -26,4 +26,10 @@ home/.claude/settings.json
 # Hook runtime files
 home/.claude/hooks/*.log
 
+# Third-party installed skills (managed by skill-installer, not repo)
+home/.agents/.skill-lock.json
+home/.agents/skills/find-skills/
+home/.agents/skills/frontend-design/
+home/.agents/skills/react-doctor/
+
 strix_runs
