@@ -1,6 +1,6 @@
 ---
 name: prc
-description: Process automated PR review comments (Greptile and /review skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
+description: Process automated PR review comments (Greptile and /prr skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
 allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Read, Edit, Write, Grep, Glob
@@ -21,7 +21,7 @@ Automated bug-finding reviewer. Does NOT have full codebase context. It frequent
 - Suggests changes that would break other parts of the system
 - Raises valid points about real bugs or oversights
 
-### `/review` skill (`<!-- automated-pr-review -->`)
+### `/prr` skill (`<!-- automated-pr-review -->`)
 Craft-focused review posted via the user's GitHub account. Comments contain `<!-- automated-pr-review -->` as the last line. These focus on architecture, readability, testing quality, and PR clarity — not correctness.
 
 **Process comments from both sources.** Ignore comments from humans or other bots that don't match these patterns.
@@ -78,7 +78,7 @@ Some findings require domain knowledge or context you may not have. **If a findi
 
 ## Step 4: Triage Each Finding
 
-For each automated review comment (both Greptile and `/review` skill), classify it:
+For each automated review comment (both Greptile and `/prr` skill), classify it:
 
 | Verdict | Action | Reaction |
 |---------|--------|----------|
@@ -107,7 +107,7 @@ For top-level issue/summary comments: do NOT react. They're just aggregates.
 
 **Greptile comments** — react with 👍/👎/🚀 as described above. Thumbs-down replies train Greptile's learning system.
 
-**`/review` skill comments** — these were posted from the user's own GitHub account. Do NOT react with emojis (reacting to your own comments looks odd). Instead:
+**`/prr` skill comments** — these were posted from the user's own GitHub account. Do NOT react with emojis (reacting to your own comments looks odd). Instead:
 - **Valid**: Fix it, then reply with a brief note: `"Fixed — [what you did]"`
 - **Invalid**: Reply explaining why it doesn't apply: `"Skipping — [reason]"`
 - **Cosmetic/out of scope**: No reply needed

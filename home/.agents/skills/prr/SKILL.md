@@ -1,5 +1,5 @@
 ---
-name: review
+name: prr
 description: Deep PR review focused on craft, architecture, testing, and clarity. Complements automated bug-finding tools like Greptile by focusing on maintainability and code quality.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
