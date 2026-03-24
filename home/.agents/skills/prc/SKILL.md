@@ -1,6 +1,6 @@
 ---
 name: prc
-description: Process automated PR review comments (Greptile), fix valid findings, react to train the reviewer, and do a final pass on the diff.
+description: Process automated PR review comments (Greptile and /review skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
 allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Read, Edit, Write, Grep, Glob
@@ -8,15 +8,23 @@ allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Read, Edit, Write, Grep,
 
 # PR Review Cleanup
 
-You are processing automated code review comments left by **Greptile** on a pull request. Your job is to triage each finding, fix the valid ones, train the reviewer with reactions, and do a final quality pass.
+You are processing automated code review comments on a pull request. Your job is to triage each finding, fix the valid ones, train the reviewers with reactions, and do a final quality pass.
 
 ## Important Context
 
-Greptile is an automated reviewer. It does NOT have full codebase context. It frequently:
+This PR may have review comments from two automated sources:
+
+### Greptile (`greptile-apps[bot]`)
+Automated bug-finding reviewer. Does NOT have full codebase context. It frequently:
 - Flags patterns that are intentional project conventions
 - Misunderstands middleware/framework behavior
 - Suggests changes that would break other parts of the system
 - Raises valid points about real bugs or oversights
+
+### `/review` skill (`<!-- automated-pr-review -->`)
+Craft-focused review posted via the user's GitHub account. Comments contain `<!-- automated-pr-review -->` as the last line. These focus on architecture, readability, testing quality, and PR clarity — not correctness.
+
+**Process comments from both sources.** Ignore comments from humans or other bots that don't match these patterns.
 
 **Your job is to use your full codebase understanding to judge each finding on its merits.**
 
@@ -38,7 +46,7 @@ gh api repos/<owner>/<repo>/issues/<number>/comments
 gh api repos/<owner>/<repo>/pulls/<number>/comments
 ```
 
-**Only process comments from `greptile-apps[bot]`.** Ignore comments from humans or other bots.
+**Only process comments from `greptile-apps[bot]` or those containing `<!-- automated-pr-review -->`.** Ignore all other comments.
 
 Checkout the PR branch locally so you can read and edit the actual code:
 ```bash
@@ -70,7 +78,7 @@ Some findings require domain knowledge or context you may not have. **If a findi
 
 ## Step 4: Triage Each Finding
 
-For each Greptile comment (both inline and from the summary), classify it:
+For each automated review comment (both Greptile and `/review` skill), classify it:
 
 | Verdict | Action | Reaction |
 |---------|--------|----------|
@@ -93,11 +101,20 @@ gh api repos/<owner>/<repo>/pulls/comments/<comment_id>/reactions -f content="ro
 gh api repos/<owner>/<repo>/pulls/<number>/comments -f body="<explanation>" -f commit_id="<sha>" -f path="<path>" -f line=<line> -f side="RIGHT" -f in_reply_to=<comment_id>
 ```
 
-For top-level issue comments (the summary): do NOT react. It's just an aggregate.
+For top-level issue/summary comments: do NOT react. They're just aggregates.
 
-### Writing thumbs-down replies
+### Reacting by source
 
-When you 👎 a finding, you MUST reply explaining why. Keep it brief and specific — this trains Greptile:
+**Greptile comments** — react with 👍/👎/🚀 as described above. Thumbs-down replies train Greptile's learning system.
+
+**`/review` skill comments** — these were posted from the user's own GitHub account. Do NOT react with emojis (reacting to your own comments looks odd). Instead:
+- **Valid**: Fix it, then reply with a brief note: `"Fixed — [what you did]"`
+- **Invalid**: Reply explaining why it doesn't apply: `"Skipping — [reason]"`
+- **Cosmetic/out of scope**: No reply needed
+
+### Writing thumbs-down replies (Greptile only)
+
+When you 👎 a Greptile finding, you MUST reply explaining why. Keep it brief and specific — this trains Greptile:
 - ✅ `"This middleware intentionally catches all exceptions; HTTPException is re-thrown upstream in the error handler chain"`
 - ✅ `"Admin endpoints don't support transaction lookup by design — documented in API spec"`
 - ❌ `"Not applicable"` (too vague, doesn't help Greptile learn)
