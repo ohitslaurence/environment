@@ -184,7 +184,11 @@ gh api repos/<owner>/<repo>/pulls/<number>/comments \
   -f side="RIGHT"
 ```
 
-**Calibration**: Only post if you'd actually say it in a real code review. If in doubt, don't post. A review with 2 strong findings is better than 10 marginal ones.
+**Calibration**:
+- Only post if you'd actually say it in a real code review. If in doubt, don't post. A review with 2 strong findings is better than 10 marginal ones.
+- **Distinguish between taste and quality.** You may prefer different patterns, but that's not the same as the code being bad. Evaluate against the repo's own standards and conventions, not yours.
+- **Quote the code.** Every comment should reference specific code. "The naming is unclear" means nothing. Show the name, explain what's confusing, suggest what would be clearer.
+- **Calibrate to context.** A 3-person startup and a 50-person platform team have different expectations. A pragmatic shortcut in an MVP is not the same as a shortcut in a mature system. Note the lens you're using.
 
 ## Step 4: Post Summary
 
