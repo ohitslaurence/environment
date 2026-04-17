@@ -267,6 +267,35 @@ fi
 
 echo ""
 echo "─────────────────────────────────────────────────────────────"
+echo "                    Docker Exposure"
+echo "─────────────────────────────────────────────────────────────"
+echo ""
+
+if command -v docker &> /dev/null && docker info &> /dev/null 2>&1; then
+    if [[ -f /etc/docker/daemon.json ]] && jq -e '.ip == "127.0.0.1"' /etc/docker/daemon.json &> /dev/null; then
+        check_pass "Docker default publish IP is 127.0.0.1 (containers default to localhost)"
+    else
+        check_fail "Docker default publish IP is NOT pinned to 127.0.0.1"
+        echo "      Containers using -p HOST:CONT will bind to 0.0.0.0 and bypass UFW."
+        echo "      Re-run: sudo bash $(dirname "$0")/../steps/docker.sh"
+    fi
+
+    EXPOSED_CONTAINERS=$(docker ps --format '{{.Names}}|{{.Image}}|{{.Ports}}' | grep -E '0\.0\.0\.0|::' || true)
+    if [[ -n "$EXPOSED_CONTAINERS" ]]; then
+        check_fail "Container(s) currently publishing on ALL interfaces:"
+        echo "$EXPOSED_CONTAINERS" | while IFS='|' read -r name image ports; do
+            echo "      $name ($image): $ports"
+        done
+        echo "      Stop+recreate these containers to pick up the daemon default."
+    else
+        check_pass "No running containers exposed on 0.0.0.0"
+    fi
+else
+    check_warn "Docker not installed or not accessible from this user"
+fi
+echo ""
+
+echo "─────────────────────────────────────────────────────────────"
 echo "                    Secret Scanner"
 echo "─────────────────────────────────────────────────────────────"
 echo ""
