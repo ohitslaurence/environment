@@ -93,3 +93,29 @@ else
         fi
     fi
 fi
+
+# Lock the default `ubuntu` cloud-image user if present.
+# It's a known username with a predictable login path — and if you've created
+# your own sudo user, ubuntu is duplicate attack surface.
+# Skipped if you ARE ubuntu (don't lock yourself out).
+if id ubuntu &>/dev/null && [[ "$USER" != "ubuntu" ]]; then
+    NEEDS_LOCK=0
+    NEEDS_NOLOGIN=0
+    NEEDS_DESUDO=0
+
+    passwd -S ubuntu 2>/dev/null | awk '{print $2}' | grep -qE '^L|^LK$' || NEEDS_LOCK=1
+    [[ "$(getent passwd ubuntu | cut -d: -f7)" != "/usr/sbin/nologin" ]] && NEEDS_NOLOGIN=1
+    getent group sudo | grep -qw ubuntu && NEEDS_DESUDO=1
+
+    if (( NEEDS_LOCK || NEEDS_NOLOGIN || NEEDS_DESUDO )); then
+        echo ""
+        echo "Locking down default 'ubuntu' user (no login, no sudo)..."
+        (( NEEDS_LOCK ))     && sudo passwd -l ubuntu > /dev/null
+        (( NEEDS_NOLOGIN ))  && sudo usermod -s /usr/sbin/nologin ubuntu
+        (( NEEDS_DESUDO ))   && sudo gpasswd -d ubuntu sudo > /dev/null
+        echo "✓ ubuntu user locked"
+    else
+        echo ""
+        echo "✓ ubuntu user already locked down"
+    fi
+fi
