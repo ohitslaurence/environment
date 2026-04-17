@@ -22,39 +22,88 @@ Tailnet ────────> VPS (Tailscale SSH only)
 - **Tailscale SSH** - Authenticate with your identity provider
 - **AWS SSO** - Temporary credentials, nothing long-lived on disk
 
-## Quick Start
+## Setup from a fresh Ubuntu install
+
+Tested on Ubuntu 24.04 (Server / Cloud / Desktop). Plan ~30 min: most of it is automated, but several steps open browser windows for auth.
+
+### 0. Prerequisites (have these ready)
+
+- **Tailscale account** — sign up at tailscale.com (free for personal). Decide what hostname you want this machine to be.
+- **GitHub account** — you'll authenticate via browser
+- **AWS SSO start URL + region** (only if you use AWS — `https://<org>.awsapps.com/start`)
+- **Nia API key** (optional — only if you use Nia CLI; create at trynia.ai)
+
+### 1. Bootstrap
 
 ```bash
-# Optional: set a hostname (default is often "None" or random)
-sudo hostnamectl set-hostname vps
+# Set a system hostname (matches what you'll use in Tailscale)
+sudo hostnamectl set-hostname my-machine
 
+# Install git + clone
+sudo apt update && sudo apt install -y git
+mkdir -p ~/dev
 git clone https://github.com/ohitslaurence/environment.git ~/dev/environment
 cd ~/dev/environment
+
+# Run the setup
 ./setup
 ```
 
-## Interactive Setup
+If you're SSH'd in as `root` on a fresh cloud image, the setup will refuse to continue and walk you through creating a regular sudo user first. Switch to that user and re-run.
 
-The `./setup` command launches an interactive menu (powered by [gum](https://github.com/charmbracelet/gum)):
+### 2. Choose "Run All Remaining"
 
+The interactive menu (powered by [gum](https://github.com/charmbracelet/gum)) shows step status; pick **Run All Remaining**.
+
+You'll hit these prompts in order — keep a browser handy:
+
+| Step | What you'll do |
+|---|---|
+| `tailscale` | Confirm hostname → browser opens for Tailscale auth |
+| `dotfiles` | Enter git email + name → GPG key auto-generates → public key printed (add to GitHub later) |
+| `gh_auth` | Browser opens for GitHub CLI login (HTTPS, with `admin:public_key` scope) |
+| `github_ssh` | Generates a new SSH key → offers to upload to GitHub via gh (say yes) |
+| `aws_sso` | Enter SSO URL + region + profile name → run `aws sso login` after |
+| `nia` | Installs CLI only — you'll run `nia auth login` separately if needed |
+
+Progress is saved to `~/.config/vps-setup/state.json` — interrupt anytime and re-running picks up where you left off.
+
+### 3. Post-setup (one-time)
+
+```bash
+# Re-login so docker group membership takes effect (or `newgrp docker`)
+exit  # then SSH back in
+
+# Authenticate AWS SSO (if you set it up)
+aws sso login --profile <your-profile>
+
+# Authenticate Nia CLI (if you use Nia)
+nia auth login
+
+# Add your GPG public key to GitHub for verified commits
+# (printed during the dotfiles step; also: gpg --armor --export <KEY_ID>)
+# Paste at: https://github.com/settings/gpg/new
+
+# Verify everything looks right
+bash scripts/analyze.sh
 ```
-╔══════════════════════════════════════════════════════════════╗
-║            🖥️  VPS Environment Setup                          ║
-╚══════════════════════════════════════════════════════════════╝
 
-  ✓ Tailscale SSH
-  ✓ UFW Firewall
-  ✓ Disable OpenSSH
-  ○ Base Packages
-  ○ Docker
-  ...
+`analyze.sh` should show ✓ on Tailscale, UFW, OpenSSH disabled, Docker default-localhost binding, no exposed containers, and no state drift.
 
-> Run All Remaining
-  Select Steps
-  Run Security Analysis
+### 4. Things this script does NOT do (do these manually)
+
+- **Cloud provider MFA** — enable on your VPS provider account
+- **GitHub MFA** — enable hardware key or authenticator at github.com/settings/security
+- **Tailscale ACLs** — by default everyone in your tailnet can reach this box; tighten in the Tailscale admin console if needed
+- **Cloud provider firewall** — if your VPS provider has its own firewall (DigitalOcean, Hetzner Cloud, etc.), keep all inbound blocked there too as a second layer
+
+### Re-running individual steps
+
+```bash
+./setup           # interactive menu, pick "Select Steps"
+# or
+bash steps/<name>.sh   # run one directly
 ```
-
-Progress is saved - come back anytime and resume where you left off.
 
 ## What Gets Installed
 
@@ -65,7 +114,7 @@ Progress is saved - come back anytime and resume where you left off.
 | **Modern CLI** | eza, bat, zoxide, fzf, direnv |
 | **TUI** | lazygit, lazydocker, htop, neovim |
 | **Runtime** | Docker, Node.js (fnm), Bun, pnpm |
-| **AI** | Claude Code, OpenCode, Nia MCP (optional) |
+| **AI** | Claude Code, OpenCode, Codex, Nia CLI |
 | **Sync** | Syncthing (file sync to laptop) |
 | **Shell** | zsh, tmux with persistence |
 | **Git** | GPG commit signing, GitHub CLI |
@@ -92,7 +141,7 @@ tmux new -s agent
 # Run Claude Code
 claude
 
-# Detach anytime (Ctrl-a d)
+# Detach anytime (Ctrl-w d — prefix is Ctrl-w)
 # Reconnect later
 tmux attach -t agent
 ```
@@ -123,14 +172,14 @@ ccu blocks --live  # Real-time usage dashboard
 
 ## Dotfiles
 
-Managed with GNU Stow. Includes:
+Managed with GNU Stow. Tracked files in `home/`:
 
 - `.zshrc` - vi-mode, modern CLI aliases, tool integrations
-- `.tmux.conf` - Ctrl-w prefix (avoids Claude Code conflicts), vim navigation, session persistence
+- `.tmux.conf` - Ctrl-w prefix (avoids Claude Code conflicts), vim navigation, tmux-resurrect + tmux-continuum (auto-save every 10 min, auto-restore on launch)
 - `.gitconfig` - GPG signing, sensible defaults
-- `.mcp.json` - Claude Code MCP servers (Nia)
-- `.claude/settings.json` - Claude Code settings (powerline status)
-- `.config/opencode/opencode.json` - OpenCode config
+- `.claude/settings.json.template` - seeds `~/.claude/settings.json` on first run
+- `.config/opencode/opencode.json.template` - seeds `~/.config/opencode/opencode.json` on first run
+- `.claude/hooks/`, `.agents/skills/` - Claude Code hooks and skill packages
 
 ## Environment Variables & Secrets
 
