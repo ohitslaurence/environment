@@ -46,13 +46,6 @@ if ! command -v zoxide &> /dev/null; then
     curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
 fi
 
-# atuin (better shell history)
-if ! command -v atuin &> /dev/null; then
-    echo ""
-    echo "Installing atuin..."
-    curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh
-fi
-
 # GitHub CLI
 if ! command -v gh &> /dev/null; then
     echo ""
@@ -115,7 +108,7 @@ echo ""
 echo "Base packages installed:"
 echo "  Core: git, curl, wget, build-essential, unzip, jq, stow"
 echo "  Search: ripgrep, fd-find, fzf"
-echo "  Modern CLI: eza, bat, zoxide, atuin, direnv, mdcat"
+echo "  Modern CLI: eza, bat, zoxide, direnv, mdcat"
 echo "  TUI: htop, neovim, lazygit, lazydocker"
 echo "  Git: gh, lumen"
 echo "  Rust: cargo"

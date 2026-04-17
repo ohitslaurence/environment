@@ -62,7 +62,7 @@ Progress is saved - come back anytime and resume where you left off.
 |----------|-------|
 | **Security** | Tailscale SSH, UFW, auto-updates |
 | **Core** | git, curl, build-essential, jq, stow |
-| **Modern CLI** | eza, bat, zoxide, atuin, fzf, direnv |
+| **Modern CLI** | eza, bat, zoxide, fzf, direnv |
 | **TUI** | lazygit, lazydocker, htop, neovim |
 | **Runtime** | Docker, Node.js (fnm), Bun, pnpm |
 | **AI** | Claude Code, OpenCode, Nia MCP (optional) |
