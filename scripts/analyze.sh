@@ -83,21 +83,31 @@ echo "                    Firewall Status"
 echo "─────────────────────────────────────────────────────────────"
 echo ""
 
-if _sudo ufw status | grep -q "Status: active"; then
+# Active check works without sudo via systemd; rule inspection still needs sudo.
+ufw_active() {
+    _sudo ufw status | grep -q "Status: active" && return 0
+    systemctl is-active --quiet ufw 2>/dev/null
+}
+
+if ufw_active; then
     check_pass "UFW is active"
 
-    if _sudo ufw status | grep -q "tailscale0"; then
-        check_pass "Tailscale interface allowed"
+    UFW_RULES=$(_sudo ufw status)
+    if [[ -z "$UFW_RULES" ]]; then
+        check_warn "Cannot inspect rules (need sudo) — re-run with: sudo bash $(basename "$0")"
     else
-        check_warn "Tailscale interface not explicitly allowed"
-    fi
+        if echo "$UFW_RULES" | grep -q "tailscale0"; then
+            check_pass "Tailscale interface allowed"
+        else
+            check_warn "Tailscale interface not explicitly allowed"
+        fi
 
-    # Check if any ports are open to public
-    if _sudo ufw status | grep -qE "22.*ALLOW.*Anywhere|80.*ALLOW.*Anywhere|443.*ALLOW.*Anywhere"; then
-        check_fail "Ports open to public internet (should only allow tailscale0)"
-        _sudo ufw status | grep "ALLOW.*Anywhere" | head -5
-    else
-        check_pass "No ports open to public internet"
+        if echo "$UFW_RULES" | grep -qE "22.*ALLOW.*Anywhere|80.*ALLOW.*Anywhere|443.*ALLOW.*Anywhere"; then
+            check_fail "Ports open to public internet (should only allow tailscale0)"
+            echo "$UFW_RULES" | grep "ALLOW.*Anywhere" | head -5
+        else
+            check_pass "No ports open to public internet"
+        fi
     fi
 else
     check_fail "UFW is not active - server is exposed!"
@@ -282,7 +292,7 @@ else
     # Command must echo "true" or "false"
     declare -A OBSERVED
     OBSERVED[tailscale]=$(tailscale status &> /dev/null && echo true || echo false)
-    OBSERVED[ufw]=$(_sudo ufw status 2>/dev/null | grep -q "Status: active" && echo true || echo false)
+    OBSERVED[ufw]=$(ufw_active && echo true || echo false)
     if systemctl is-active --quiet ssh 2>/dev/null \
         || systemctl is-active --quiet sshd 2>/dev/null \
         || systemctl is-active --quiet ssh.socket 2>/dev/null; then
@@ -295,6 +305,8 @@ else
     OBSERVED[node]=$(command -v node &> /dev/null || command -v fnm &> /dev/null && echo true || echo false)
     OBSERVED[claude]=$(command -v claude &> /dev/null && echo true || echo false)
     OBSERVED[opencode]=$(command -v opencode &> /dev/null && echo true || echo false)
+    OBSERVED[codex]=$(command -v codex &> /dev/null && echo true || echo false)
+    OBSERVED[gh_auth]=$(gh auth status &> /dev/null && echo true || echo false)
     OBSERVED[syncthing]=$(systemctl --user is-active --quiet syncthing 2>/dev/null \
         || systemctl is-active --quiet syncthing@${USER} 2>/dev/null \
         || pgrep -x syncthing &> /dev/null && echo true || echo false)

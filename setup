@@ -120,12 +120,14 @@ init_state() {
   "zsh": false,
   "tmux": false,
   "dotfiles": false,
+  "gh_auth": false,
   "github_ssh": false,
   "docker": false,
   "node": false,
   "bun": false,
   "claude": false,
   "opencode": false,
+  "codex": false,
   "syncthing": false,
   "aws_sso": false,
   "gritty": false,
@@ -169,12 +171,14 @@ build_menu() {
     echo "$(status_icon zsh) zsh - Set as default shell"
     echo "$(status_icon tmux) tmux - Terminal multiplexer"
     echo "$(status_icon dotfiles) Dotfiles - shell, tmux, git, GPG signing"
+    echo "$(status_icon gh_auth) GitHub CLI auth - browser-based gh login"
     echo "$(status_icon github_ssh) GitHub SSH - SSH key for git operations"
     echo "$(status_icon docker) Docker - Container runtime"
     echo "$(status_icon node) Node.js - via fnm (version manager)"
     echo "$(status_icon bun) Bun - Fast JS runtime"
     echo "$(status_icon claude) Claude Code - AI coding assistant"
     echo "$(status_icon opencode) OpenCode - AI coding assistant"
+    echo "$(status_icon codex) Codex - OpenAI CLI coding assistant"
     echo "$(status_icon syncthing) Syncthing - File sync to laptop"
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
     echo "$(status_icon gritty) Gritty - AI-powered Git CLI"
@@ -281,12 +285,14 @@ run_all_remaining() {
         "zsh"
         "tmux"
         "dotfiles"
+        "gh_auth"
         "github_ssh"
         "docker"
         "node"
         "bun"
         "claude"
         "opencode"
+        "codex"
         "syncthing"
         "aws_sso"
         "gritty"
@@ -323,12 +329,14 @@ select_steps() {
         "zsh:zsh"
         "tmux:tmux"
         "dotfiles:Dotfiles"
+        "gh_auth:GitHub CLI auth"
         "github_ssh:GitHub SSH"
         "docker:Docker"
         "node:Node.js (fnm)"
         "bun:Bun"
         "claude:Claude Code"
         "opencode:OpenCode"
+        "codex:Codex"
         "syncthing:Syncthing"
         "aws_sso:AWS SSO"
         "gritty:Gritty"

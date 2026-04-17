@@ -49,6 +49,13 @@ else
     results+=("${YELLOW}○${NC} Bun (not installed)")
 fi
 
+# Codex (OpenAI CLI, installed via bun global)
+if command -v codex &> /dev/null; then
+    upgrade_tool "Codex" "bun update -g @openai/codex"
+else
+    results+=("${YELLOW}○${NC} Codex (not installed)")
+fi
+
 # Gritty (AI-powered Git CLI)
 if command -v gritty &> /dev/null; then
     upgrade_tool "Gritty" "cd ~/dev/personal/gritty && git pull && bun install && bun run build"
