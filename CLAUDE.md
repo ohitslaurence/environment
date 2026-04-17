@@ -27,9 +27,9 @@ scripts/analyze.sh           # Security analysis of the VPS
 - Files like `home/.zshrc` become `~/.zshrc`
 
 ### Secrets Pattern
-- Configs in repo use env vars: `${NIA_API_KEY}`
-- Actual secrets in `~/.zshrc.local` (not in git, sourced by `.zshrc`)
-- Step scripts prompt for secrets and write to `.zshrc.local`
+- Tracked configs in `home/` contain no secrets
+- Generated configs (e.g. `~/.claude/settings.json`, `~/.config/opencode/opencode.json`) are gitignored — seeded from `*.template` on first run, then user-extended with machine-specific MCPs/keys
+- Long-lived secrets go in `~/.zshrc.local` (not in git, sourced by `.zshrc`)
 
 ## Adding a New Step
 

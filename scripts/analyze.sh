@@ -306,6 +306,7 @@ else
     OBSERVED[claude]=$(command -v claude &> /dev/null && echo true || echo false)
     OBSERVED[opencode]=$(command -v opencode &> /dev/null && echo true || echo false)
     OBSERVED[codex]=$(command -v codex &> /dev/null && echo true || echo false)
+    OBSERVED[nia]=$(command -v nia &> /dev/null && echo true || echo false)
     OBSERVED[gh_auth]=$(gh auth status &> /dev/null && echo true || echo false)
     OBSERVED[syncthing]=$(systemctl --user is-active --quiet syncthing 2>/dev/null \
         || systemctl is-active --quiet syncthing@${USER} 2>/dev/null \

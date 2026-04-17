@@ -136,26 +136,10 @@ Managed with GNU Stow. Includes:
 
 Configs are version controlled but **secrets stay local**. The pattern:
 
-```
-~/.zshrc.local          # API keys, not in git
-~/.mcp.json             # Uses ${NIA_API_KEY} from environment
-```
-
-**How it works:**
-1. Stow symlinks config files from this repo to `~`
-2. Config files reference env vars like `${NIA_API_KEY}`
-3. Actual keys are stored in `~/.zshrc.local` (sourced by `.zshrc`)
-4. Each machine has its own `.zshrc.local` with real values
-
-**Current env vars:**
-| Variable | Purpose | Set by |
-|----------|---------|--------|
-| `NIA_API_KEY` | Nia MCP authentication | `./setup` → Nia MCP step |
-
-To add a secret on a new machine, either run the setup step or manually add to `~/.zshrc.local`:
-```bash
-export NIA_API_KEY="your-key-here"
-```
+- Tracked configs in `home/` contain no secrets — stow symlinks them to `~`
+- `~/.claude/settings.json` and `~/.config/opencode/opencode.json` are gitignored. They're seeded from `*.template` on first run, then you can add machine-specific MCP servers / API keys without leaking to the repo.
+- Long-lived shell secrets go in `~/.zshrc.local` (sourced by `.zshrc`, not in git)
+- AI CLIs handle their own auth: `claude` (browser), `nia auth login` (browser), `codex` (browser), `gh auth login` (browser)
 
 ## Credits
 

@@ -1,17 +1,6 @@
 {
-  "mcp": {
-    "nia": {
-      "type": "remote",
-      "url": "https://apigcp.trynia.ai/mcp",
-      "headers": {
-        "Authorization": "Bearer ${NIA_API_KEY}"
-      },
-      "enabled": true,
-      "oauth": false
-    }
-  },
   "instructions": [
-    "~/.claude/CLAUDE.md",
+    "~/.claude/CLAUDE.md"
   ],
-  "$schema": "https://opencode.ai/config.json",
+  "$schema": "https://opencode.ai/config.json"
 }

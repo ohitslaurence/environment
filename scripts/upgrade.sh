@@ -56,6 +56,13 @@ else
     results+=("${YELLOW}○${NC} Codex (not installed)")
 fi
 
+# Nia CLI (installed via bun global)
+if command -v nia &> /dev/null; then
+    upgrade_tool "Nia" "bun update -g @nozomioai/nia"
+else
+    results+=("${YELLOW}○${NC} Nia (not installed)")
+fi
+
 # Gritty (AI-powered Git CLI)
 if command -v gritty &> /dev/null; then
     upgrade_tool "Gritty" "cd ~/dev/personal/gritty && git pull && bun install && bun run build"

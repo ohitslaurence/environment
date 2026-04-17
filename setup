@@ -133,7 +133,7 @@ init_state() {
   "gritty": false,
   "par": false,
   "gitleaks": false,
-  "nia_mcp": false
+  "nia": false
 }
 EOF
     fi
@@ -184,9 +184,7 @@ build_menu() {
     echo "$(status_icon gritty) Gritty - AI-powered Git CLI"
     echo "$(status_icon par) Par - Parallel worktree & session manager"
     echo "$(status_icon gitleaks) gitleaks - Secret scanner for git repos"
-    echo ""
-    gum style --faint "Optional (not in Run All):"
-    echo "$(status_icon nia_mcp) Nia MCP - AI tools for Claude/OpenCode"
+    echo "$(status_icon nia) Nia CLI - search code, docs, and research"
 }
 
 run_step() {
@@ -298,6 +296,7 @@ run_all_remaining() {
         "gritty"
         "par"
         "gitleaks"
+        "nia"
     )
 
     for step in "${steps[@]}"; do
@@ -342,7 +341,7 @@ select_steps() {
         "gritty:Gritty"
         "par:Par"
         "gitleaks:gitleaks"
-        "nia_mcp:Nia MCP (optional)"
+        "nia:Nia CLI"
     )
 
     local items=()
