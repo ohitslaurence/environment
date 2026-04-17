@@ -1,6 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
+# Usage: analyze.sh [--sync-state]
+#   --sync-state  rewrite ~/.config/vps-setup/state.json from observed reality
+SYNC_STATE=false
+for arg in "$@"; do
+    [[ "$arg" == "--sync-state" ]] && SYNC_STATE=true
+done
+
+STATE_FILE="$HOME/.config/vps-setup/state.json"
+
 echo "══════════════════════════════════════════════════════════════"
 echo "                   Security Analysis Report"
 echo "══════════════════════════════════════════════════════════════"
@@ -10,6 +19,16 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+# Wrap sudo so password prompts don't kill the script under `set -e`.
+# Returns empty output instead of failing when sudo isn't available.
+_sudo() { sudo -n "$@" 2>/dev/null || true; }
+HAS_SUDO=$(sudo -n true 2>/dev/null && echo true || echo false)
+if [[ "$HAS_SUDO" != "true" ]]; then
+    echo -e "  ${YELLOW}⚠${NC} Running without passwordless sudo — UFW & port-listing checks will be limited."
+    echo -e "  ${YELLOW}⚠${NC} Re-run with 'sudo bash $(basename "$0")' for full coverage."
+    echo ""
+fi
 
 check_pass() {
     echo -e "  ${GREEN}✓${NC} $1"
@@ -64,19 +83,19 @@ echo "                    Firewall Status"
 echo "─────────────────────────────────────────────────────────────"
 echo ""
 
-if sudo ufw status | grep -q "Status: active"; then
+if _sudo ufw status | grep -q "Status: active"; then
     check_pass "UFW is active"
 
-    if sudo ufw status | grep -q "tailscale0"; then
+    if _sudo ufw status | grep -q "tailscale0"; then
         check_pass "Tailscale interface allowed"
     else
         check_warn "Tailscale interface not explicitly allowed"
     fi
 
     # Check if any ports are open to public
-    if sudo ufw status | grep -qE "22.*ALLOW.*Anywhere|80.*ALLOW.*Anywhere|443.*ALLOW.*Anywhere"; then
+    if _sudo ufw status | grep -qE "22.*ALLOW.*Anywhere|80.*ALLOW.*Anywhere|443.*ALLOW.*Anywhere"; then
         check_fail "Ports open to public internet (should only allow tailscale0)"
-        sudo ufw status | grep "ALLOW.*Anywhere" | head -5
+        _sudo ufw status | grep "ALLOW.*Anywhere" | head -5
     else
         check_pass "No ports open to public internet"
     fi
@@ -109,7 +128,7 @@ echo "────────────────────────�
 echo ""
 
 echo "  Services listening on all interfaces (0.0.0.0 or *):"
-EXPOSED=$(sudo ss -tlnp | grep -E "0\.0\.0\.0:\*|::" | grep -v "127\." || true)
+EXPOSED=$(_sudo ss -tlnp | grep -E "0\.0\.0\.0:\*|::" | grep -v "127\." || true)
 if [[ -n "$EXPOSED" ]]; then
     echo "$EXPOSED" | while read line; do
         check_warn "$line"
@@ -122,7 +141,7 @@ fi
 echo ""
 
 echo "  Services on Tailscale interface:"
-sudo ss -tlnp | grep -E "LISTEN" | head -10
+_sudo ss -tlnp | grep -E "LISTEN" | head -10 || ss -tlnp 2>/dev/null | grep -E "LISTEN" | head -10 || true
 echo ""
 
 echo "─────────────────────────────────────────────────────────────"
@@ -179,19 +198,19 @@ SCORE=0
 MAX_SCORE=5
 
 # Tailscale running
-tailscale status &> /dev/null && ((SCORE++))
+tailscale status &> /dev/null && ((++SCORE))
 
 # UFW active
-sudo ufw status | grep -q "Status: active" && ((SCORE++))
+_sudo ufw status | grep -q "Status: active" && ((++SCORE))
 
 # OpenSSH disabled (service and socket)
-! systemctl is-active --quiet sshd 2>/dev/null && ! systemctl is-active --quiet ssh 2>/dev/null && ! systemctl is-active --quiet ssh.socket 2>/dev/null && ((SCORE++))
+! systemctl is-active --quiet sshd 2>/dev/null && ! systemctl is-active --quiet ssh 2>/dev/null && ! systemctl is-active --quiet ssh.socket 2>/dev/null && ((++SCORE))
 
 # Auto updates
-systemctl is-enabled --quiet unattended-upgrades 2>/dev/null && ((SCORE++))
+systemctl is-enabled --quiet unattended-upgrades 2>/dev/null && ((++SCORE))
 
 # No public ports
-! sudo ufw status | grep -qE "22.*ALLOW.*Anywhere" && ((SCORE++))
+! _sudo ufw status | grep -qE "22.*ALLOW.*Anywhere" && ((++SCORE))
 
 echo "  Score: $SCORE / $MAX_SCORE"
 echo ""
@@ -214,17 +233,22 @@ RECOMMENDATIONS=0
 
 if ! tailscale status &> /dev/null 2>&1; then
     echo "  • Connect Tailscale: sudo tailscale up --ssh"
-    ((RECOMMENDATIONS++))
+    ((++RECOMMENDATIONS))
 fi
 
-if ! sudo ufw status | grep -q "Status: active"; then
+if ! _sudo ufw status | grep -q "Status: active"; then
     echo "  • Enable firewall: sudo ufw enable"
-    ((RECOMMENDATIONS++))
+    ((++RECOMMENDATIONS))
 fi
 
 if systemctl is-active --quiet sshd 2>/dev/null || systemctl is-active --quiet ssh 2>/dev/null || systemctl is-active --quiet ssh.socket 2>/dev/null; then
     echo "  • Disable OpenSSH: sudo systemctl disable --now ssh ssh.socket"
-    ((RECOMMENDATIONS++))
+    ((++RECOMMENDATIONS))
+fi
+
+if ! command -v gitleaks &> /dev/null; then
+    echo "  • Install secret scanner: bash $(dirname "$0")/../steps/gitleaks.sh"
+    ((++RECOMMENDATIONS))
 fi
 
 if [[ "$RECOMMENDATIONS" -eq 0 ]]; then
@@ -232,6 +256,87 @@ if [[ "$RECOMMENDATIONS" -eq 0 ]]; then
 fi
 
 echo ""
+echo "─────────────────────────────────────────────────────────────"
+echo "                    Secret Scanner"
+echo "─────────────────────────────────────────────────────────────"
+echo ""
+
+if command -v gitleaks &> /dev/null; then
+    check_pass "gitleaks installed: $(gitleaks version 2>&1 | head -1)"
+    echo "      Scan working tree:  gitleaks detect --source ~/dev --no-git"
+    echo "      Scan with history:  gitleaks detect --source <repo>"
+else
+    check_warn "gitleaks not installed (run: bash $(dirname "$0")/../steps/gitleaks.sh)"
+fi
+echo ""
+
+echo "─────────────────────────────────────────────────────────────"
+echo "                    State Drift Detection"
+echo "─────────────────────────────────────────────────────────────"
+echo ""
+
+if [[ ! -f "$STATE_FILE" ]] || ! command -v jq &> /dev/null; then
+    check_warn "Skipping drift check (state.json or jq missing)"
+else
+    # Pairs of "step_key:observed_state_command"
+    # Command must echo "true" or "false"
+    declare -A OBSERVED
+    OBSERVED[tailscale]=$(tailscale status &> /dev/null && echo true || echo false)
+    OBSERVED[ufw]=$(_sudo ufw status 2>/dev/null | grep -q "Status: active" && echo true || echo false)
+    if systemctl is-active --quiet ssh 2>/dev/null \
+        || systemctl is-active --quiet sshd 2>/dev/null \
+        || systemctl is-active --quiet ssh.socket 2>/dev/null; then
+        OBSERVED[disable_ssh]=false
+    else
+        OBSERVED[disable_ssh]=true
+    fi
+    OBSERVED[docker]=$(command -v docker &> /dev/null && echo true || echo false)
+    OBSERVED[bun]=$(command -v bun &> /dev/null && echo true || echo false)
+    OBSERVED[node]=$(command -v node &> /dev/null || command -v fnm &> /dev/null && echo true || echo false)
+    OBSERVED[claude]=$(command -v claude &> /dev/null && echo true || echo false)
+    OBSERVED[opencode]=$(command -v opencode &> /dev/null && echo true || echo false)
+    OBSERVED[syncthing]=$(systemctl --user is-active --quiet syncthing 2>/dev/null \
+        || systemctl is-active --quiet syncthing@${USER} 2>/dev/null \
+        || pgrep -x syncthing &> /dev/null && echo true || echo false)
+    OBSERVED[gritty]=$(command -v gritty &> /dev/null && echo true || echo false)
+    OBSERVED[par]=$(command -v par &> /dev/null && echo true || echo false)
+    OBSERVED[gitleaks]=$(command -v gitleaks &> /dev/null && echo true || echo false)
+    OBSERVED[github_ssh]=$([[ -f "$HOME/.ssh/id_ed25519.pub" || -f "$HOME/.ssh/id_rsa.pub" ]] && echo true || echo false)
+    OBSERVED[aws_sso]=$(command -v aws &> /dev/null && echo true || echo false)
+
+    DRIFTED=()
+    for key in "${!OBSERVED[@]}"; do
+        recorded=$(jq -r ".$key // \"missing\"" "$STATE_FILE")
+        observed="${OBSERVED[$key]}"
+        if [[ "$recorded" != "$observed" && "$recorded" != "missing" ]]; then
+            DRIFTED+=("$key:$recorded:$observed")
+        fi
+    done
+
+    if [[ ${#DRIFTED[@]} -eq 0 ]]; then
+        check_pass "No drift — state.json matches observed reality"
+    else
+        for entry in "${DRIFTED[@]}"; do
+            IFS=: read -r key recorded observed <<< "$entry"
+            check_fail "$key: state=$recorded but observed=$observed"
+        done
+        echo ""
+        if $SYNC_STATE; then
+            tmp=$(mktemp)
+            cp "$STATE_FILE" "$tmp"
+            for entry in "${DRIFTED[@]}"; do
+                IFS=: read -r key recorded observed <<< "$entry"
+                jq ".$key = $observed" "$tmp" > "$tmp.new" && mv "$tmp.new" "$tmp"
+            done
+            mv "$tmp" "$STATE_FILE"
+            echo -e "  ${GREEN}✓${NC} state.json updated to match reality"
+        else
+            echo "  Run with --sync-state to overwrite state.json from observed reality"
+        fi
+    fi
+fi
+echo ""
+
 echo "══════════════════════════════════════════════════════════════"
 echo "                   Analysis Complete"
 echo "══════════════════════════════════════════════════════════════"
