@@ -12,5 +12,15 @@ fi
 
 echo ""
 echo "Claude Code installed"
+
+# Statusline dependency referenced in home/.claude/settings.json
+if command -v npm &> /dev/null; then
+    if ! npm list -g @owloops/claude-powerline &> /dev/null 2>&1; then
+        echo ""
+        echo "Installing claude-powerline (statusline used by .claude/settings.json)..."
+        npm install -g @owloops/claude-powerline
+    fi
+fi
+
 echo ""
 echo "Run 'claude' to start, or use within tmux for persistent sessions."
