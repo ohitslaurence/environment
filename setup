@@ -130,6 +130,7 @@ init_state() {
   "aws_sso": false,
   "gritty": false,
   "par": false,
+  "gitleaks": false,
   "nia_mcp": false
 }
 EOF
@@ -178,6 +179,7 @@ build_menu() {
     echo "$(status_icon aws_sso) AWS SSO - IAM Identity Center setup"
     echo "$(status_icon gritty) Gritty - AI-powered Git CLI"
     echo "$(status_icon par) Par - Parallel worktree & session manager"
+    echo "$(status_icon gitleaks) gitleaks - Secret scanner for git repos"
     echo ""
     gum style --faint "Optional (not in Run All):"
     echo "$(status_icon nia_mcp) Nia MCP - AI tools for Claude/OpenCode"
@@ -289,6 +291,7 @@ run_all_remaining() {
         "aws_sso"
         "gritty"
         "par"
+        "gitleaks"
     )
 
     for step in "${steps[@]}"; do
@@ -330,6 +333,7 @@ select_steps() {
         "aws_sso:AWS SSO"
         "gritty:Gritty"
         "par:Par"
+        "gitleaks:gitleaks"
         "nia_mcp:Nia MCP (optional)"
     )
 
