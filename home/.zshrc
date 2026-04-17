@@ -293,3 +293,6 @@ export PATH="/home/laurence/.strix/bin:$PATH"
 
 # bun completions
 [ -s "/home/laurence/.bun/_bun" ] && source "/home/laurence/.bun/_bun"
+
+# Vite+ bin (https://viteplus.dev)
+. "$HOME/.vite-plus/env"

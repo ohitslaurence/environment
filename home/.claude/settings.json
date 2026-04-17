@@ -1,5 +1,5 @@
 {
-  "model": "opus",
+  "model": "opus[1m]",
   "hooks": {
     "Stop": [
       {
@@ -39,5 +39,6 @@
         "Authorization": "Bearer nk_bffBHNJIoHJJgJHYnuH5hIBRh0gB9sw1"
       }
     }
-  }
+  },
+  "effortLevel": "high"
 }

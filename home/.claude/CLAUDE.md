@@ -49,16 +49,3 @@ gritty pr --accept         # Create PR
 ```
 
 Always use `--accept` flag in non-interactive environments.
-
-## Research (Nia MCP)
-
-Before WebFetch/WebSearch, check Nia first:
-
-1. `manage_resource(action='list', query='...')` - check if already indexed
-2. If indexed: use `search`, `nia_grep`, `nia_read`, `nia_explore`
-3. If not indexed: `index` it, then search
-4. If URL unknown: `nia_research(mode='quick')` to discover
-
-GitHub/npm/PyPI URLs should always be indexed, not web-fetched.
-
-For complex questions: `nia_research` with `mode: "deep"`.
