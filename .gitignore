@@ -1,4 +1,4 @@
-# Local overrides
+# Local overrides (e.g. .zshrc.local, .gitconfig.local)
 *.local
 !home/.local/
 
@@ -13,18 +13,22 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Sensitive
+# Belt-and-braces secret patterns (apply everywhere)
+**/.credentials*
+**/credentials.json
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+**/*.token
+**/*_token
 *.pem
 *.key
 id_rsa*
 id_ed25519*
 
-# Generated configs with secrets
-home/.config/opencode/opencode.json
-home/.claude/settings.json
-
-# Hook runtime files
-home/.claude/hooks/*.log
+# strix output
+strix_runs
 
 # Third-party installed skills (managed by skill-installer, not repo)
 home/.agents/.skill-lock.json
@@ -32,4 +36,37 @@ home/.agents/skills/find-skills/
 home/.agents/skills/frontend-design/
 home/.agents/skills/react-doctor/
 
-strix_runs
+# ─────────────────────────────────────────────────────────────────────
+# Dotfile dirs: allowlist what we track, ignore everything else.
+# These directories double as live runtime targets (via stow), so any
+# tool that writes state into ~/.dir/ lands here. Default to ignoring,
+# explicitly un-ignore tracked files.
+# ─────────────────────────────────────────────────────────────────────
+
+# home/.claude/ — Claude Code runtime (credentials, sessions, history, telemetry)
+home/.claude/*
+home/.claude/**
+!home/.claude/CLAUDE.md
+!home/.claude/commands/
+!home/.claude/commands/**
+!home/.claude/hooks/
+!home/.claude/hooks/keyword-detector.py
+!home/.claude/hooks/todo-enforcer.config.json
+!home/.claude/hooks/todo-enforcer.sh
+!home/.claude/settings.json.template
+!home/.claude/skills
+
+# home/.config/ — XDG config dumping ground for many tools
+home/.config/*
+home/.config/**
+!home/.config/opencode/
+!home/.config/opencode/opencode.json.template
+
+# home/.ssh/ — only the config file, never keys or known_hosts
+home/.ssh/*
+!home/.ssh/config
+
+# home/.local/ — XDG data/state dumping ground; only ~/.local/bin is intentional
+home/.local/*
+!home/.local/bin/
+!home/.local/bin/**
