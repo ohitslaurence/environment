@@ -1,41 +1,56 @@
 ---
 name: prl
-description: Compound PR review. Look across the last week of merged PRs (up to a watermark) and propose high-signal, load-bearing improvements. The goal is fewer, better problems solved — not more rules.
+description: Audit the system that produced the last week of PRs — agent guidance, lint, repo shape, test policy, CI gates — and propose changes that would steer future PRs toward better outcomes. Not delayed PR review. Not a bug hunt.
 disable-model-invocation: true
 argument-hint: [--days N]
 allowed-tools: Bash(gh *), Bash(git *), Bash(date *), Bash(jq *), Read, Grep, Glob, Edit, Write
 ---
 
-# PR Compound Review — Lessons, Not Rules
+# PR Compound Review — Audit the System, Not the PRs
 
-You are doing a retrospective across recent PRs to find issues worth acting on — recurring patterns *or* one-off problems important enough to address — and to propose the right fix for each.
+You are auditing **the system that produces PRs in this repo** — the agent guidance (`AGENTS.md`, scoped sub-files, `CLAUDE.md`), the lint and type config, the repo's structural shape (helpers, types, abstractions), the test policy, the CI gates. The last week of merged PRs is your evidence of how that system performed.
+
+You are **not** reviewing the PRs. The PRs already shipped. The mistakes are already made or already fixed. The question is not "what's wrong with this code?" — it is:
+
+> **"What was missing from the system that would have steered the agent or author away from these mistakes before they were written?"**
+
+A bug is not a finding. A bug is *evidence*. The finding is the gap in guidance, tooling, or repo structure that the bug reveals. The proposal is the change to that system.
 
 ## The reward function
 
-**Real problems found and meaningfully solved.** Not rules added, not findings produced.
+**Real systemic gaps found and meaningfully closed.** Not rules added. Not bugs reported. Not specific code patched.
 
-If the window contains nothing worth acting on, the right output is:
+If the window's PRs reveal no systemic gap worth addressing, the right output is:
 
-> "No issues worth acting on in this window."
+> "No systemic gaps worth addressing in this window."
 
-That is a success, not a failure. **Do not manufacture findings to justify the run.** Do not grade on a curve.
+That is a success. **Do not manufacture findings to justify the run.** Do not grade on a curve.
 
-## What you are looking for
+## What you are NOT doing
 
-Two kinds of finding deserve action:
+- **Not reviewing the PRs.** Specific bugs in current code belong in an issue tracker. If a proposal reads "fix this code path" or "add a test for this function" — that is a bug fix, not a learning. File it separately and drop it from this report.
+- **Not extending `/prr`.** This is not delayed code review. Per-PR observations are *inputs* — raw signal that you cluster and abstract from. The output lives one level up.
+- **Not generating a feature-specific to-do list.** A list of fixes for one feature area is a backlog. This skill produces changes to guidance, tooling, or structure that affect **how the next PR gets written** — not patches to what last week's PRs did wrong.
 
-- **A pattern** — the same class of mistake, blind spot, or correction showing up across multiple PRs. The recurrence is the signal.
-- **A single important issue** — one occurrence, but the cost of repeating it (or having missed it longer) is high enough that it warrants a fix on its own. Security, data loss, irreversible operations, foot-guns that will fire again, gaps in awareness that meaningfully shaped a PR's outcome.
+## The litmus test
 
-Both are valid. Don't filter out a serious one-off because it didn't recur. Don't promote a thin recurrence because it appeared twice.
+Before any proposal can move past draft, answer concretely:
 
-## Why the bar is high
+> **"If this had been in place when these PRs were written, would the PRs themselves have come out differently — and would it generalise to PRs you haven't seen yet?"**
+
+- ❌ "The bug would have been caught later" — that is reviewer tooling, not a system change. Drop.
+- ❌ "This specific bug would not have happened" — too local. If the same intervention can't prevent the *class* of mistake elsewhere in the codebase, it's a bug fix masquerading as a learning. Drop.
+- ✅ "The agent would have considered X by default / written test Y unprompted / used helper Z without thinking, across the whole class of work this affects." That is the right altitude.
+
+If you cannot articulate a concrete system-level "yes" — drop the proposal. The underlying bug, if real, gets filed as an issue and is not part of this report.
+
+## Why the bar is high (for written rules in particular)
 
 Every line in `AGENTS.md`, `CLAUDE.md`, or scoped sub-`AGENTS.md` files costs context weight on every future agent invocation. Each addition dilutes the weight of everything already there. A rule that doesn't earn its line makes the ones that do less effective.
 
-So the bar for proposing a new rule is: **the cost of repeating this mistake is greater than the cost of carrying this rule in agent context forever.** If you can't argue that confidently, drop it.
+So the bar for proposing a written rule is: **the cost of repeating this class of mistake is greater than the cost of carrying this rule in agent context forever.** If you can't argue that confidently, drop it.
 
-Mechanical enforcement (lint, type, test) carries far less context cost than written rules. That doesn't make it always the right answer — it makes the cost-side of the calculation different. Weigh it honestly per finding.
+Mechanical enforcement (lint, type, structural) carries far less context cost than written rules. That doesn't make it always the right answer — it makes the cost-side of the calculation different. Weigh it honestly per finding.
 
 ## The toolbox
 
@@ -52,6 +67,8 @@ Pick the mechanism that delivers the most leverage for the specific pattern. The
 
 ## What does NOT count
 
+- **Bug fixes for current code.** "Add a test for X", "fix this validation in Y", "the helper at Z is wrong." These are issues, not learnings. They belong in a tracker, not this report.
+- **One-feature structural changes.** A "structural helper" that only addresses one feature area's bug is a code fix dressed up as a system change. Structural proposals must shape a *class* of future work — not patch one place.
 - Style preferences. Taste ≠ quality.
 - Nits. Ten nits do not aggregate into a real finding.
 - Issues already covered by an existing rule, lint, or test policy. If an existing rule should have caught it, the fix is enforcement (a lint, a check), not another rule restating the first.
@@ -148,51 +165,61 @@ For each candidate, classify:
 | **Style / taste** | Preference, not quality. | Drop. |
 | **Already covered** | An existing rule, lint, or test policy should catch it. | The proposal — if any — is about enforcement of the existing rule, not adding a new one. |
 
-## Step 5: For each candidate, choose the right fix
+## Step 5: For each candidate, choose the right system change
 
-Look at the toolbox honestly. Don't reach for the first thing — reach for the thing that actually addresses *this* failure mode at *this* place in the codebase. The right mechanism is the one with the highest ratio of (problems prevented) to (ongoing cost).
+Run the **litmus test** first (re-stated):
+
+> If this had been in place when these PRs were written, would the PRs themselves have come out differently — and does it generalise to PRs you haven't seen yet?
+
+If you can't answer concretely yes to both halves, the candidate is a bug or a one-feature fix, not a system change. Move it to `Bugs surfaced` and stop processing it as a proposal.
+
+If it passes — pick the mechanism from the toolbox that actually fits. The right mechanism is the one with the highest ratio of (problems prevented across future work) to (ongoing cost).
 
 Think through, for each candidate:
 
-- **Where does the failure actually happen?** A pattern that only matters in `/api/billing` shouldn't be enforced globally. A pattern that's truly universal shouldn't be hidden in a sub-directory.
-- **What's catching it today, and why isn't that working?** If lint should have caught it but didn't — the fix is the lint config, not a new rule.
-- **Is this consideration mechanical or judgmental?** "Don't import X from Y" is mechanical. "Think about cache invalidation when touching user state" is judgmental — a lint can't carry that, a written rule can.
-- **Is it load-bearing, or restating something obvious?** Drop the obvious.
-- **What does it displace?** Every addition has a cost, and rules in particular dilute the weight of the rules already there. Is this finding worth that dilution?
+- **Where does the failure mode actually live?** In how the agent thinks (→ guidance), in what the code allows (→ lint/types/structure), in what the tests cover (→ test policy), in what the process gates (→ CI/checks)? Choose accordingly.
+- **What's catching it today, and why isn't that working?** If lint should have caught it but didn't — the fix is the lint config, not a new rule. If guidance covered it but agents ignored it — the fix is enforcement, not more guidance.
+- **Is this consideration mechanical or judgmental?** "Don't import X from Y" is mechanical → lint. "Think about cache invalidation when touching user state" is judgmental → written rule. Don't conflate.
 - **Is it specific?** "Be careful with caching" is useless. Either name the exact case ("when adding a route that reads from `users`, invalidate `user:{id}` keys") or don't propose it.
+- **What does it displace?** Every written rule dilutes the others. Is this finding worth that dilution? If unsure, prefer mechanical enforcement or drop.
+- **Does it generalise?** A structural helper that only the wallet kit will ever use is a refactor, not a system change. A helper that establishes a pattern other features will follow is a system change.
 
-If no mechanism cleanly fits, the right answer may be "this is a real pattern but no enforcement is worth its cost." Say so. That is a legitimate verdict.
+If no mechanism cleanly fits at the system level — the right answer may be "this is a real pattern but no system-level intervention is worth its cost." Say so. That is a legitimate verdict.
 
 ## Step 6: Output the report
 
-Present a single report. Keep it terse.
+Present a single report. Keep it terse. **Every proposal is a system change** — to guidance, lint, structure, test policy, CI, or process. Specific bugs go in `Bugs surfaced (filed separately)` — they are evidence, not findings.
 
 ```markdown
 ## Compound PR Review — <date range>
 
 **Window**: <N> PRs reviewed (#X, #Y, #Z, ...)
 
-### Observations
-- <theme or single notable finding> — PR refs. Brief description.
+### Systemic gaps
+- <gap in the system> — what the system failed to do. PR refs as evidence.
 - ...
 
 ### Proposals
-1. **<short title>** — <chosen mechanism>
-   - What: <concrete change, including file path>
-   - Why: <PR refs and the cost of leaving it>
-   - Why this mechanism: <one line — why this tool fits this problem>
+1. **<short title>** — <chosen mechanism: lint / test policy / structural / scoped rule / root rule / CI / process>
+   - What: <concrete change to the system — not to a code path>
+   - Why: <which gap this closes; PR refs as evidence>
+   - Counterfactual: "If this had been in place, [PR X / class of PRs] would have ___" — the litmus test, in writing.
+   - Generalises to: <what other future work this affects, beyond the evidence PRs>
 
 ### Considered and rejected
-- <theme>: <one-line reason — taste, low-impact, already covered, etc.>
+- <theme>: <one-line reason — too local, taste, already covered, no credible mechanism, etc.>
+
+### Bugs surfaced (filed separately)
+- <one-line bug>: <PR ref, suggested action — issue / hotfix / follow-up PR>
 ```
 
 If there are no proposals, the Proposals section reads:
 
-> No issues worth acting on in this window.
+> No systemic gaps worth addressing in this window.
 
-That is a complete, valid report. Do not pad it.
+That is a complete, valid report. Do not pad it. The `Bugs surfaced` list, if any, can still be present — surfacing a bug is not the same as proposing a system change.
 
-**Do not auto-apply changes.** Propose, let the user accept. If accepted, the user runs the edits or asks you to.
+**Do not auto-apply changes.** Propose, let the user accept.
 
 ## Step 7: Watermark every PR processed
 
@@ -206,6 +233,9 @@ The watermark means "considered in a compound review", not "had findings". Water
 
 ## Anti-patterns
 
+- **Treating bugs as findings.** A specific bug in current code is *evidence*, not a finding. The finding is what that bug reveals about the system. If your proposal patches a code path or names one file as the fix, you've produced a backlog item, not a learning.
+- **One-feature structural proposals.** "Add a helper for the wallet kit address access" — if the helper only matters for one feature, it is a code fix. Structural proposals must shape a *class* of work.
+- **Failing the litmus test silently.** Every proposal must answer "would the PRs have come out differently, and does it generalise?" If you can't answer concretely — drop it.
 - **Manufacturing findings** to make the report feel substantive. The empty report is a valid report.
 - **Rule inflation** — turning every minor preference into a line in `AGENTS.md`.
 - **Vague rules** — "consider performance", "be careful with X". Specific or nothing.
