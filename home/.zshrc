@@ -186,6 +186,7 @@ alias ga='git add'
 alias gc='git commit'
 alias gp='git push'
 alias gl='git log --oneline -20'
+alias gcm='git checkout main && git pull'
 alias lg='lazygit'
 
 alias ..='cd ..'
@@ -296,3 +297,5 @@ export PATH="/home/laurence/.strix/bin:$PATH"
 
 # Vite+ bin (https://viteplus.dev)
 . "$HOME/.vite-plus/env"
+
+. "$HOME/.local/bin/env"
