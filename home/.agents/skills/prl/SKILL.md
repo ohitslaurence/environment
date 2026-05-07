@@ -97,17 +97,19 @@ Closed-without-merge PRs are usually noise; skip them unless the user asks other
 
 ## Step 2: Filter out already-watermarked PRs
 
-The watermark is the **🧠 label** on the PR. PRs carrying this label have already been included in a previous compound review — skip them.
+The watermark is the **`🧠 prl`** label on the PR. PRs carrying this label have already been included in a previous compound review — skip them.
+
+> The label name pairs the emoji with text because GitHub rejects label names that are *only* a native emoji. Always use the exact string `🧠 prl` — do not improvise a near-substitute if the label doesn't exist yet; create it.
 
 Check existence:
 ```bash
-gh pr view <n> --json labels --jq '[.labels[].name] | index("🧠")'
+gh pr view <n> --json labels --jq '[.labels[].name] | index("🧠 prl")'
 ```
 A non-null result means already processed.
 
-If the label doesn't yet exist in the repo, create it once:
+If the label doesn't yet exist in the repo, create it once before the first watermark of the run:
 ```bash
-gh label create "🧠" --description "Included in compound PR review (prl)" --color "C9A0DC" 2>/dev/null || true
+gh label create "🧠 prl" --description "Included in compound PR review (prl)" --color "C9A0DC" 2>/dev/null || true
 ```
 
 ## Step 3: Mine signal per remaining PR
@@ -223,11 +225,13 @@ That is a complete, valid report. Do not pad it. The `Bugs surfaced` list, if an
 
 ## Step 7: Watermark every PR processed
 
-After the report — including PRs that contributed nothing to it — apply the 🧠 label:
+After the report — including PRs that contributed nothing to it — apply the `🧠 prl` label:
 
 ```bash
-gh pr edit <n> --add-label "🧠"
+gh pr edit <n> --add-label "🧠 prl"
 ```
+
+If the label-add fails (e.g. label not yet created in this repo), run the `gh label create` from Step 2 once, then retry. **Do not silently substitute a different label name** — the watermark must be consistent across runs, or PRs will be re-processed.
 
 The watermark means "considered in a compound review", not "had findings". Watermarking PRs that contributed nothing is correct: it prevents re-processing them next week.
 
