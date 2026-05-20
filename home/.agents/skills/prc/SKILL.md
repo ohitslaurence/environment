@@ -1,6 +1,6 @@
 ---
 name: prc
-description: Process automated PR review comments (Greptile and /prr skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
+description: Process automated PR review comments (Greptile, Strix security agent, and /prr skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
 allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Read, Edit, Write, Grep, Glob
@@ -12,7 +12,7 @@ You are processing automated code review comments on a pull request. Your job is
 
 ## Important Context
 
-This PR may have review comments from two automated sources:
+This PR may have review comments from three automated sources:
 
 ### Greptile (`greptile-apps[bot]`)
 Automated bug-finding reviewer. Does NOT have full codebase context. It frequently:
@@ -21,10 +21,18 @@ Automated bug-finding reviewer. Does NOT have full codebase context. It frequent
 - Suggests changes that would break other parts of the system
 - Raises valid points about real bugs or oversights
 
+### Strix security agent (bot account, e.g. `strix-bot` / `strix-app[bot]`)
+Autonomous AI security-testing agent. Present only on some PRs. It focuses on security concerns — injection, auth/authorization gaps, secret handling, unsafe deserialization, SSRF, and similar. Like Greptile it lacks full codebase context, so it can:
+- Flag intentional, already-mitigated, or internal-only patterns as vulnerabilities
+- Miss compensating controls elsewhere in the request chain
+- Surface genuine, high-impact security bugs that the other reviewers don't
+
+Treat Strix findings with extra care: a false negative on a real security issue is costlier than on a style nit. When a Strix finding is plausible but you can't confirm the control flow is safe, ask rather than dismiss.
+
 ### `/prr` skill (`<!-- automated-pr-review -->`)
 Craft-focused review posted via the user's GitHub account. Comments contain `<!-- automated-pr-review -->` as the last line. These focus on architecture, readability, testing quality, and PR clarity — not correctness.
 
-**Process comments from both sources.** Ignore comments from humans or other bots that don't match these patterns.
+**Process comments from all three sources.** Ignore comments from humans or other bots that don't match these patterns.
 
 **Your job is to use your full codebase understanding to judge each finding on its merits.**
 
@@ -46,7 +54,7 @@ gh api repos/<owner>/<repo>/issues/<number>/comments
 gh api repos/<owner>/<repo>/pulls/<number>/comments
 ```
 
-**Only process comments from `greptile-apps[bot]` or those containing `<!-- automated-pr-review -->`.** Ignore all other comments.
+**Only process comments from `greptile-apps[bot]`, the Strix bot account (login containing `strix`), or those containing `<!-- automated-pr-review -->`.** Ignore all other comments.
 
 Checkout the PR branch locally so you can read and edit the actual code:
 ```bash
@@ -78,7 +86,7 @@ Some findings require domain knowledge or context you may not have. **If a findi
 
 ## Step 4: Triage Each Finding
 
-For each automated review comment (both Greptile and `/prr` skill), classify it:
+For each automated review comment (Greptile, Strix, and `/prr` skill), classify it:
 
 | Verdict | Action | Reaction |
 |---------|--------|----------|
@@ -106,6 +114,8 @@ For top-level issue/summary comments: do NOT react. They're just aggregates.
 ### Reacting by source
 
 **Greptile comments** — react with 👍/👎/🚀 as described above. Thumbs-down replies train Greptile's learning system.
+
+**Strix comments** — react with 👍/👎/🚀 as described above (it's a separate bot account, so emoji reactions are appropriate). When you 👎 a Strix finding, reply explaining why it's not a real security issue — be specific about the compensating control or why the path isn't reachable, so a reviewer reading later can verify your reasoning.
 
 **`/prr` skill comments** — these were posted from the user's own GitHub account. Do NOT react with emojis (reacting to your own comments looks odd). Instead:
 - **Valid**: Fix it, then reply with a brief note: `"Fixed — [what you did]"`

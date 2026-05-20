@@ -144,6 +144,7 @@ gh api repos/<owner>/<repo>/issues/<n>/comments       # top-level
 ```
 
 - **Greptile** (`greptile-apps[bot]`): which got 👍 (accepted) vs 👎 (rejected). Accepted = real bug worth tracking. **Repeatedly-rejected greptile findings are themselves a finding** — they reveal a codebase idiom that external tools don't understand. Often the right action is a lint that encodes the idiom so greptile (and other tools) stop flagging it.
+- **Strix security agent** (bot login containing `strix`): which got 👍 (accepted) vs 👎 (rejected). Accepted = a real security gap worth tracking, and worth asking whether the class of issue can be prevented systemically (lint, type, framework default). **Repeatedly-rejected strix findings** point to a security pattern the tool keeps misreading — encode the mitigation so it stops flagging it.
 - **`/prr` skill** comments (containing `<!-- automated-pr-review -->`): which got `"Fixed — ..."` replies vs `"Skipping — ..."`.
 - **Human comments**: read for context; humans surface things tools miss.
 
