@@ -437,7 +437,31 @@ function createOrOpenSingleRepoContext(alias, task, repo) {
 
 function openLabel(label) {
   ensureLayout(label);
+
+  // `par open` uses `tmux switch-client` whenever $TMUX is set, which crashes
+  // the whole command with "no current client" when $TMUX points at a server
+  // with no ATTACHED client (e.g. running `work` from a headless/agent shell
+  // like Claude's `!`, which inherits $TMUX with no client). The session is
+  // already created — report how to reach it instead of crashing. Do NOT
+  // `attach` here: attaching would nest the session inside the current one; a
+  // real interactive client switches cleanly via `par open`'s `switch-client`.
+  if (process.env.TMUX && !hasAttachedClient()) {
+    const session = loadState().sessions?.[label];
+    const tmuxSession = session?.tmux_session_name || label;
+    console.log(`work: context '${label}' is ready (tmux session: ${tmuxSession}).`);
+    console.log(`  No attached tmux client to switch to (headless shell?). From your terminal:`);
+    console.log(`    tmux switch-client -t ${tmuxSession}   # or your session picker`);
+    return;
+  }
+
   runInherit("par", ["open", label]);
+}
+
+function hasAttachedClient() {
+  const result = runCapture("tmux", ["list-clients", "-F", "#{client_name}"], {
+    check: false,
+  });
+  return result.status === 0 && result.stdout.trim().length > 0;
 }
 
 function ensureLayout(label) {
