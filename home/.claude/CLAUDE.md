@@ -40,6 +40,9 @@ System prompt > repo AGENTS.md > these defaults.
 
 ## Git
 
+- Prefer very small, frequent commits. A PR made of many tiny commits is fine — preferred over a few large ones.
+- Commit after each logical step, not at the end of the task.
+
 Use `gritty` for commits/PRs. Run `gritty --help` for options.
 
 ```bash

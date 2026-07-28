@@ -1,0 +1,1011 @@
+#!/usr/bin/env node
+
+// dev — herdr port of `work`: task-first wrapper around herdr worktrees + gritty.
+// Single-repo contexts branch as <repo>__<task> with the checkout at
+// <repo-path>-wt-<task>; cross-repo contexts branch as <task> in every repo.
+// Shares the `work` repo registry (repos.tsv) so both tools agree on repos.
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const readline = require("node:readline/promises");
+const { spawnSync } = require("node:child_process");
+
+const DEV_REPOS_FILE =
+  process.env.DEV_REPOS_FILE ||
+  process.env.WORK_REPOS_FILE ||
+  path.join(os.homedir(), ".config", "work", "repos.tsv");
+const DEFAULT_TABS = ["shell", "agent"];
+const LABEL_SEP = "__";
+
+async function main() {
+  const args = process.argv.slice(2);
+
+  if (args.length === 0) {
+    await cmdDashboard();
+    return;
+  }
+
+  const [command, ...rest] = args;
+
+  switch (command) {
+    case "help":
+    case "--help":
+    case "-h":
+      printHelp();
+      return;
+    case "--knows":
+      process.exit(loadRepos()[rest[0]] ? 0 : 1);
+      return;
+    case "pick":
+      await cmdDashboard();
+      return;
+    case "ls":
+      cmdLs();
+      return;
+    case "repos":
+      cmdRepos(rest);
+      return;
+    case "branch":
+      await cmdBranch(rest);
+      return;
+    case "cross":
+      cmdCross(rest);
+      return;
+    case "done":
+      cmdDone(rest);
+      return;
+    case "refresh":
+      cmdRefresh(rest);
+      return;
+    case "save":
+      requireInsideGitRepo("dev save");
+      requireCommand("gritty");
+      runInherit("gritty", ["commit", "--accept"]);
+      return;
+    case "pr":
+      requireInsideGitRepo("dev pr");
+      requireCommand("gritty");
+      runInherit("gritty", ["pr", "--accept"]);
+      if (hasCommand("gh")) {
+        runInherit("gh", ["pr", "checks"]);
+      }
+      return;
+    case "bootstrap":
+      cmdBootstrap();
+      return;
+    case "sync":
+      cmdSync();
+      return;
+    default:
+      await cmdRepo(command, rest);
+  }
+}
+
+function printHelp() {
+  console.log(`dev: task-first wrapper around herdr worktrees + gritty
+
+Usage:
+  dev pick
+  dev <repo> [task]
+  dev branch <task>
+  dev cross <task> <repo> [repo...]
+  dev ls
+  dev repos [--json]
+  dev sync
+  dev refresh [repo]
+  dev bootstrap
+  dev save
+  dev pr
+  dev done [label] [--force]
+
+Config:
+  Repos are discovered by scanning $DEV_REPOS_DIR (default: the parent
+  folder of the first repos.tsv entry) for git checkouts; alias = folder
+  name. ${DEV_REPOS_FILE} is optional and overrides scanned entries:
+  alias<TAB>path<TAB>default_branch
+
+Labels use repo${LABEL_SEP}task format (e.g. rain${LABEL_SEP}fix-auth); cross contexts use the bare task.
+Worktrees live beside the repo as <repo>-wt-<task>.
+
+(The dev shell function falls back to 'cd $DEV_HOME/<arg>' for anything
+that is not a subcommand or configured repo alias.)
+`);
+}
+
+async function cmdDashboard() {
+  requireCommand("herdr");
+
+  const repos = loadRepos();
+  const contexts = listContexts();
+
+  if (contexts.length === 0) {
+    console.log("No active contexts.");
+    await openRepoFromDashboard(repos);
+    return;
+  }
+
+  if (hasCommand("fzf")) {
+    const options = [
+      ...contexts.map((ctx) => `context\t${contextLabel(ctx, repos)}`),
+      ...Object.keys(repos)
+        .sort()
+        .map((alias) => `repo\t${alias}`),
+    ];
+    const picked = runFzf(options, "dev> ");
+    if (!picked) {
+      return;
+    }
+
+    const [kind, value] = picked.split("\t");
+    if (kind === "context") {
+      focusContextByLabel(value, repos);
+      return;
+    }
+
+    if (kind === "repo") {
+      await cmdRepo(value, []);
+      return;
+    }
+  }
+
+  cmdLs();
+  console.log("\nRun `dev <repo>` to open or create a task.");
+}
+
+async function openRepoFromDashboard(repos) {
+  const aliases = Object.keys(repos).sort();
+  if (aliases.length === 0) {
+    fail(`No repos configured. Create ${DEV_REPOS_FILE} first.`, 1);
+  }
+
+  if (hasCommand("fzf")) {
+    const picked = runFzf(aliases, "repo> ");
+    if (!picked) {
+      return;
+    }
+    await cmdRepo(picked, []);
+    return;
+  }
+
+  console.log("Configured repos:");
+  for (const alias of aliases) {
+    console.log(`  ${alias}`);
+  }
+  console.log("\nRun `dev <repo>` to start.");
+}
+
+async function cmdRepo(alias, rest) {
+  requireCommand("herdr");
+
+  const repos = loadRepos();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${DEV_REPOS_FILE}.`);
+  }
+
+  const taskArg = rest[0];
+  if (taskArg) {
+    createOrOpenSingleRepoContext(alias, normalizeTask(taskArg), repo);
+    return;
+  }
+
+  const active = listContexts().filter(
+    (ctx) => samePath(ctx.worktree.repo_root, repo.path),
+  );
+
+  if (active.length === 1) {
+    focusWorkspace(active[0].workspace_id);
+    return;
+  }
+
+  if (active.length > 1 && hasCommand("fzf")) {
+    const byLabel = new Map(
+      active.map((ctx) => [contextLabel(ctx, repos), ctx]),
+    );
+    const picked = runFzf([...byLabel.keys(), "[new task]"], `${alias}> `);
+    if (!picked) {
+      return;
+    }
+    if (picked !== "[new task]") {
+      focusWorkspace(byLabel.get(picked).workspace_id);
+      return;
+    }
+  } else if (active.length > 1) {
+    console.log(`Active ${alias} contexts:`);
+    for (const ctx of active) {
+      console.log(`  ${contextLabel(ctx, repos)}`);
+    }
+  }
+
+  const task = await promptText(`Task for ${alias}: `);
+  createOrOpenSingleRepoContext(alias, normalizeTask(task), repo);
+}
+
+async function cmdBranch(rest) {
+  if (rest.length === 0) {
+    fail("Usage: dev branch <task>");
+  }
+
+  const alias = inferCurrentRepoAlias();
+  const repos = loadRepos();
+  const repo = repos[alias];
+  createOrOpenSingleRepoContext(alias, normalizeTask(rest[0]), repo);
+}
+
+function cmdCross(rest) {
+  requireCommand("herdr");
+
+  if (rest.length < 2) {
+    fail("Usage: dev cross <task> <repo> [repo...]");
+  }
+
+  const task = normalizeTask(rest[0]);
+  const repoAliases = [...new Set(rest.slice(1))];
+  const repos = loadRepos();
+  const selectedRepos = repoAliases.map((alias) => {
+    const repo = repos[alias];
+    if (!repo) {
+      fail(`Unknown repo '${alias}'. Add it to ${DEV_REPOS_FILE}.`);
+    }
+    return { alias, ...repo };
+  });
+
+  const existing = listContexts().find((ctx) => ctx.label === task);
+  if (existing) {
+    focusWorkspace(existing.workspace_id);
+    return;
+  }
+
+  for (const repo of selectedRepos) {
+    fetchBase(repo.alias, repo);
+  }
+
+  const [primary, ...others] = selectedRepos;
+  const worktreePathFor = (repo) => `${repo.path}-wt-${task}`;
+
+  const created = herdrJson([
+    "worktree",
+    "create",
+    "--cwd",
+    primary.path,
+    "--branch",
+    task,
+    "--base",
+    baseRef(primary),
+    "--path",
+    worktreePathFor(primary),
+    "--label",
+    task,
+    "--no-focus",
+    "--json",
+  ]);
+  const workspaceId = created.result.workspace.workspace_id;
+
+  for (const repo of others) {
+    addGitWorktree(repo, task, worktreePathFor(repo));
+  }
+
+  for (const repo of selectedRepos) {
+    bootstrapWorktree(worktreePathFor(repo));
+  }
+
+  ensureTabs(workspaceId, worktreePathFor(primary), [
+    ...others.map((repo) => ({ name: repo.alias, cwd: worktreePathFor(repo) })),
+  ]);
+  focusWorkspace(workspaceId);
+}
+
+function addGitWorktree(repo, branch, worktreePath) {
+  requireCommand("git");
+  if (localBranchExists(repo.path, branch)) {
+    runInherit("git", ["-C", repo.path, "worktree", "add", worktreePath, branch]);
+  } else {
+    runInherit("git", [
+      "-C",
+      repo.path,
+      "worktree",
+      "add",
+      "-b",
+      branch,
+      worktreePath,
+      baseRef(repo),
+    ]);
+  }
+}
+
+function cmdDone(rest) {
+  requireCommand("herdr");
+
+  const force = rest.includes("--force") || rest.includes("-f");
+  const labelArg = rest.find((arg) => !arg.startsWith("-"));
+  const repos = loadRepos();
+
+  const ctx = labelArg
+    ? findContextByLabel(labelArg, repos)
+    : currentContext();
+  if (!ctx) {
+    fail("No current context found. Pass a label: dev done <label>");
+  }
+
+  const task = ctx.label;
+  const primaryPath = ctx.worktree.checkout_path;
+  const branch = currentBranchName(primaryPath);
+  const isCross = !branch.includes(LABEL_SEP);
+
+  // Cross contexts have sibling checkouts in every registered repo on the
+  // same bare-task branch; single-repo branches are <repo>__<task> so they
+  // can never collide with another context's checkouts.
+  const siblings = isCross
+    ? Object.values(repos)
+        .map((repo) => `${repo.path}-wt-${task}`)
+        .filter(
+          (candidate) =>
+            !samePath(candidate, primaryPath) &&
+            fs.existsSync(candidate) &&
+            currentBranchName(candidate) === branch,
+        )
+    : [];
+
+  if (!force) {
+    for (const checkout of [primaryPath, ...siblings]) {
+      if (runCapture("git", ["-C", checkout, "status", "--porcelain"], { check: false }).stdout.trim()) {
+        fail(
+          `Uncommitted changes in ${checkout} — commit/push them, or 'dev done --force' to discard.`,
+        );
+      }
+    }
+  }
+
+  for (const checkout of siblings) {
+    const repoRoot = checkout.replace(/-wt-[^/]+$/, "");
+    console.log(`dev: removing ${checkout} (branch ${branch} kept)`);
+    runInherit("git", [
+      "-C",
+      repoRoot,
+      "worktree",
+      "remove",
+      ...(force ? ["--force"] : []),
+      checkout,
+    ]);
+  }
+
+  // Focus the parent repo workspace first: removing the workspace kills the
+  // pane this command runs in, so it must be the last thing we do.
+  const insideTarget = process.env.HERDR_WORKSPACE_ID === ctx.workspace_id;
+  if (insideTarget) {
+    const info = herdrJson(["worktree", "list", "--workspace", ctx.workspace_id, "--json"]);
+    const parent = info.result?.source?.source_workspace_id;
+    if (parent) {
+      runQuiet("herdr", ["workspace", "focus", parent]);
+    }
+  }
+
+  console.log(`dev: removing ${primaryPath} (branch ${branch} kept)`);
+  runCapture("herdr", [
+    "worktree",
+    "remove",
+    "--workspace",
+    ctx.workspace_id,
+    ...(force ? ["--force"] : []),
+  ]);
+}
+
+function cmdRefresh(rest) {
+  const repos = loadRepos();
+  const alias = rest[0] || inferCurrentRepoAlias();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${DEV_REPOS_FILE}.`);
+  }
+
+  refreshCanonicalRepo(alias, repo);
+}
+
+function cmdSync() {
+  requireInsideGitRepo("dev sync");
+
+  const repos = loadRepos();
+  const alias = inferCurrentRepoAlias();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'. Add it to ${DEV_REPOS_FILE}.`);
+  }
+
+  const repoRoot = gitTopLevel();
+  assertClean(repoRoot, "Commit or stash changes before dev sync.");
+  requireCommand("git");
+
+  runInherit("git", ["-C", repoRoot, "fetch", "origin", repo.base]);
+
+  const currentBranch = currentBranchName(repoRoot);
+  if (!currentBranch) {
+    fail("Detached HEAD. Checkout a branch before running dev sync.");
+  }
+
+  if (currentBranch === repo.base) {
+    runInherit("git", ["-C", repoRoot, "pull", "--ff-only", "origin", repo.base]);
+    return;
+  }
+
+  runInherit("git", ["-C", repoRoot, "rebase", `origin/${repo.base}`]);
+}
+
+function cmdBootstrap() {
+  requireInsideGitRepo("dev bootstrap");
+  bootstrapWorktree(gitTopLevel());
+}
+
+function cmdLs() {
+  const repos = loadRepos();
+  const contexts = listContexts();
+  if (contexts.length === 0) {
+    console.log("No active contexts.");
+    return;
+  }
+
+  for (const ctx of contexts) {
+    console.log(
+      [
+        contextLabel(ctx, repos).padEnd(40),
+        (ctx.agent_status || "unknown").padEnd(8),
+        ctx.worktree.checkout_path,
+      ].join(" "),
+    );
+  }
+}
+
+const LOCKFILE_COMMANDS = [
+  { file: "bun.lock", cmd: ["bun", "install"] },
+  { file: "bun.lockb", cmd: ["bun", "install"] },
+  { file: "pnpm-lock.yaml", cmd: ["pnpm", "install", "--frozen-lockfile"] },
+  { file: "yarn.lock", cmd: ["yarn", "install"] },
+  { file: "package-lock.json", cmd: ["npm", "ci"] },
+];
+
+function bootstrapWorktree(worktreePath) {
+  const resolved = path.resolve(worktreePath);
+
+  if (fs.existsSync(path.join(resolved, ".par.yaml"))) {
+    console.log(`bootstrap: ${resolved} has .par.yaml, skipping generic bootstrap`);
+    return;
+  }
+
+  for (const { file, cmd } of LOCKFILE_COMMANDS) {
+    if (fs.existsSync(path.join(resolved, file))) {
+      console.log(`bootstrap: found ${file}, running ${cmd.join(" ")}`);
+      const result = spawnSync(cmd[0], cmd.slice(1), {
+        stdio: "inherit",
+        cwd: resolved,
+        env: process.env,
+      });
+      if (result.status !== 0) {
+        console.error(`bootstrap: ${cmd.join(" ")} failed (exit ${result.status})`);
+      }
+      return;
+    }
+  }
+
+  console.log(`bootstrap: no lockfile found in ${resolved}, nothing to do`);
+}
+
+function createOrOpenSingleRepoContext(alias, task, repo) {
+  const branch = `${alias}${LABEL_SEP}${task}`;
+  const worktreePath = `${repo.path}-wt-${task}`;
+
+  const existing = listContexts().find((ctx) =>
+    samePath(ctx.worktree.checkout_path, worktreePath),
+  );
+  if (existing) {
+    focusWorkspace(existing.workspace_id);
+    return;
+  }
+
+  if (fs.existsSync(worktreePath)) {
+    const opened = herdrJson([
+      "worktree",
+      "open",
+      "--cwd",
+      repo.path,
+      "--path",
+      worktreePath,
+      "--label",
+      task,
+      "--no-focus",
+      "--json",
+    ]);
+    const workspaceId = opened.result.workspace.workspace_id;
+    ensureTabs(workspaceId, worktreePath);
+    focusWorkspace(workspaceId);
+    return;
+  }
+
+  fetchBase(alias, repo);
+  const created = herdrJson([
+    "worktree",
+    "create",
+    "--cwd",
+    repo.path,
+    "--branch",
+    branch,
+    "--base",
+    baseRef(repo),
+    "--path",
+    worktreePath,
+    "--label",
+    task,
+    "--no-focus",
+    "--json",
+  ]);
+  const workspaceId = created.result.workspace.workspace_id;
+
+  bootstrapWorktree(worktreePath);
+  ensureTabs(workspaceId, worktreePath);
+  focusWorkspace(workspaceId);
+}
+
+function ensureTabs(workspaceId, defaultCwd, extraTabs = []) {
+  const tabs = herdrJson(["tab", "list", "--workspace", workspaceId]).result.tabs;
+  if (tabs.length === 0) {
+    return;
+  }
+
+  const labels = new Set(tabs.map((tab) => tab.label));
+  if (!labels.has("shell")) {
+    runQuiet("herdr", ["tab", "rename", tabs[0].tab_id, "shell"]);
+  }
+
+  const wanted = [
+    ...extraTabs,
+    ...DEFAULT_TABS.filter((name) => name !== "shell").map((name) => ({
+      name,
+      cwd: defaultCwd,
+    })),
+  ];
+  for (const { name, cwd } of wanted) {
+    if (labels.has(name)) {
+      continue;
+    }
+    runQuiet("herdr", [
+      "tab",
+      "create",
+      "--workspace",
+      workspaceId,
+      "--label",
+      name,
+      "--cwd",
+      cwd,
+      "--no-focus",
+    ]);
+  }
+}
+
+function listContexts() {
+  const workspaces = herdrJson(["workspace", "list"]).result.workspaces;
+  return workspaces.filter((ws) => ws.worktree?.is_linked_worktree);
+}
+
+function contextLabel(ctx, repos) {
+  const alias = aliasForRepoRoot(ctx.worktree.repo_root, repos);
+  if (!alias || ctx.label.startsWith(`${alias}${LABEL_SEP}`)) {
+    return ctx.label;
+  }
+  return `${alias}${LABEL_SEP}${ctx.label}`;
+}
+
+function aliasForRepoRoot(repoRoot, repos) {
+  for (const [alias, repo] of Object.entries(repos)) {
+    if (samePath(repo.path, repoRoot)) {
+      return alias;
+    }
+  }
+  return "";
+}
+
+function findContextByLabel(label, repos) {
+  const contexts = listContexts();
+  return (
+    contexts.find((ctx) => contextLabel(ctx, repos) === label) ||
+    contexts.find((ctx) => ctx.label === label)
+  );
+}
+
+function focusContextByLabel(label, repos) {
+  const ctx = findContextByLabel(label, repos);
+  if (!ctx) {
+    fail(`No context named '${label}'.`);
+  }
+  focusWorkspace(ctx.workspace_id);
+}
+
+function currentContext() {
+  const contexts = listContexts();
+
+  const wsId = process.env.HERDR_WORKSPACE_ID;
+  if (wsId) {
+    const match = contexts.find((ctx) => ctx.workspace_id === wsId);
+    if (match) {
+      return match;
+    }
+  }
+
+  try {
+    const topLevel = gitTopLevel();
+    return contexts.find((ctx) => samePath(ctx.worktree.checkout_path, topLevel));
+  } catch {
+    return undefined;
+  }
+}
+
+function focusWorkspace(workspaceId) {
+  runCapture("herdr", ["workspace", "focus", workspaceId]);
+}
+
+function herdrJson(args) {
+  const result = runCapture("herdr", args);
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    fail(`Unexpected herdr output for 'herdr ${args.join(" ")}': ${result.stdout.slice(0, 200)}`);
+  }
+}
+
+// Update the remote-tracking ref so new worktrees branch from a fresh
+// origin/<base>. Unlike refreshCanonicalRepo this never touches the canonical
+// checkout, so it works while an agent has it dirty or on another branch.
+function fetchBase(alias, repo) {
+  requireCommand("git");
+  runInherit("git", ["-C", repo.path, "fetch", "origin", repo.base]);
+}
+
+function baseRef(repo) {
+  return `origin/${repo.base}`;
+}
+
+// Full canonical refresh (clean + on base + pulled). Only `dev refresh` needs
+// this; context creation branches from origin/<base> and skips it entirely.
+function refreshCanonicalRepo(alias, repo) {
+  requireCommand("git");
+
+  assertClean(
+    repo.path,
+    `Canonical clone ${alias} is dirty. Clean it before branching from ${repo.base}.`,
+  );
+
+  runInherit("git", ["-C", repo.path, "fetch", "origin", repo.base]);
+
+  if (!localBranchExists(repo.path, repo.base)) {
+    runInherit("git", [
+      "-C",
+      repo.path,
+      "switch",
+      "--create",
+      repo.base,
+      "--track",
+      `origin/${repo.base}`,
+    ]);
+  } else if (currentBranchName(repo.path) !== repo.base) {
+    runInherit("git", ["-C", repo.path, "switch", repo.base]);
+  }
+
+  runInherit("git", ["-C", repo.path, "pull", "--ff-only", "origin", repo.base]);
+}
+
+function localBranchExists(repoPath, branch) {
+  const result = runCapture(
+    "git",
+    ["-C", repoPath, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+    { check: false },
+  );
+  return result.status === 0;
+}
+
+function currentBranchName(repoPath) {
+  return runCapture("git", ["-C", repoPath, "branch", "--show-current"], {
+    check: false,
+  }).stdout.trim();
+}
+
+function assertClean(repoPath, message) {
+  const status = runCapture("git", ["-C", repoPath, "status", "--porcelain"]).stdout.trim();
+  if (status) {
+    fail(message);
+  }
+}
+
+function inferCurrentRepoAlias() {
+  const repos = loadRepos();
+  const current = gitTopLevel();
+  const currentBranch = currentBranchName(current);
+
+  if (currentBranch.includes(LABEL_SEP)) {
+    const [alias] = currentBranch.split(LABEL_SEP, 1);
+    if (repos[alias]) {
+      return alias;
+    }
+  }
+
+  for (const [alias, repo] of Object.entries(repos)) {
+    if (samePath(repo.path, current)) {
+      return alias;
+    }
+  }
+
+  const remoteName = originRepoName(current);
+  if (remoteName && repos[remoteName]) {
+    return remoteName;
+  }
+
+  fail(
+    "Could not infer the current repo alias. Run from a configured repo or branch created by dev.",
+  );
+}
+
+function originRepoName(repoPath) {
+  const remote = runCapture(
+    "git",
+    ["-C", repoPath, "config", "--get", "remote.origin.url"],
+    { check: false },
+  ).stdout.trim();
+
+  if (!remote) {
+    return "";
+  }
+
+  const normalized = remote.replace(/\.git$/, "");
+  const segments = normalized.split(/[/:]/);
+  return segments[segments.length - 1] || "";
+}
+
+function cmdRepos(rest) {
+  const repos = loadRepos();
+  const entries = Object.entries(repos).sort(([a], [b]) => a.localeCompare(b));
+  if (rest.includes("--json")) {
+    console.log(
+      JSON.stringify({
+        repos: entries.map(([alias, repo]) => ({
+          alias,
+          path: repo.path,
+          defaultBranch: repo.base,
+        })),
+      }),
+    );
+    return;
+  }
+  for (const [alias, repo] of entries) {
+    console.log(`${alias.padEnd(40)} ${repo.base.padEnd(8)} ${repo.path}`);
+  }
+}
+
+function loadRepos() {
+  const repos = scanReposDir();
+  const hasTsv = fs.existsSync(DEV_REPOS_FILE);
+  if (!hasTsv && Object.keys(repos).length === 0) {
+    fail(
+      `No repos found. Set DEV_REPOS_DIR to a folder of git checkouts, or create ${DEV_REPOS_FILE} with: alias<TAB>path<TAB>default_branch`,
+    );
+  }
+  if (!hasTsv) {
+    return repos;
+  }
+
+  // repos.tsv entries override scanned repos (custom aliases, paths outside
+  // the base dir, non-default base branches).
+  const lines = fs.readFileSync(DEV_REPOS_FILE, "utf8").split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+
+    const [alias, repoPath, base = "main"] = trimmed.split("\t");
+    if (!alias || !repoPath) {
+      fail(`Invalid repos.tsv line: ${line}`);
+    }
+
+    repos[alias] = {
+      path: expandHome(repoPath),
+      base,
+    };
+  }
+
+  return repos;
+}
+
+/**
+ * Derives the registry from a base folder: every direct child with a .git
+ * DIRECTORY is a repo (alias = folder name). Linked worktrees keep .git as a
+ * file, so <repo>-wt-<task> checkouts are excluded automatically.
+ * Base dir: $DEV_REPOS_DIR, else the parent dir of the first repos.tsv entry.
+ */
+function scanReposDir() {
+  const reposDir = resolveReposDir();
+  const repos = {};
+  if (!reposDir || !fs.existsSync(reposDir)) {
+    return repos;
+  }
+  for (const entry of fs.readdirSync(reposDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+      continue;
+    }
+    const repoPath = path.join(reposDir, entry.name);
+    let gitStat;
+    try {
+      gitStat = fs.statSync(path.join(repoPath, ".git"));
+    } catch {
+      continue;
+    }
+    if (!gitStat.isDirectory()) {
+      continue;
+    }
+    repos[entry.name] = {
+      path: repoPath,
+      base: detectDefaultBranch(repoPath),
+    };
+  }
+  return repos;
+}
+
+function resolveReposDir() {
+  if (process.env.DEV_REPOS_DIR) {
+    return expandHome(process.env.DEV_REPOS_DIR);
+  }
+  if (!fs.existsSync(DEV_REPOS_FILE)) {
+    return null;
+  }
+  for (const line of fs.readFileSync(DEV_REPOS_FILE, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const repoPath = trimmed.split("\t")[1];
+    if (repoPath) {
+      return path.dirname(expandHome(repoPath));
+    }
+  }
+  return null;
+}
+
+/** Reads origin's HEAD ref from disk (no git subprocess); falls back to main. */
+function detectDefaultBranch(repoPath) {
+  try {
+    const head = fs.readFileSync(
+      path.join(repoPath, ".git", "refs", "remotes", "origin", "HEAD"),
+      "utf8",
+    );
+    const match = head.match(/refs\/remotes\/origin\/(.+)\s*$/);
+    if (match) {
+      return match[1].trim();
+    }
+  } catch {
+    /* no origin HEAD recorded */
+  }
+  return "main";
+}
+
+function gitTopLevel() {
+  const result = runCapture("git", ["rev-parse", "--show-toplevel"], { check: false });
+  if (result.status !== 0) {
+    fail("Not inside a git repository.");
+  }
+  return result.stdout.trim();
+}
+
+function requireInsideGitRepo(commandName) {
+  const result = runCapture("git", ["rev-parse", "--show-toplevel"], { check: false });
+  if (result.status !== 0) {
+    fail(`${commandName} must run inside a git repository.`);
+  }
+}
+
+function hasCommand(command) {
+  const result = spawnSync("sh", ["-c", `command -v "${command}" >/dev/null 2>&1`], {
+    stdio: "ignore",
+  });
+  return result.status === 0;
+}
+
+function requireCommand(command) {
+  if (!hasCommand(command)) {
+    fail(`Missing required command: ${command}`);
+  }
+}
+
+function runFzf(options, prompt) {
+  const result = spawnSync("fzf", ["--prompt", prompt], {
+    input: options.join("\n"),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "inherit"],
+  });
+
+  if (result.status !== 0) {
+    return "";
+  }
+
+  return result.stdout.trim();
+}
+
+async function promptText(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return rl.question(question).then((answer) => {
+    rl.close();
+    return answer.trim();
+  });
+}
+
+function normalizeTask(task) {
+  const normalized = task
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  if (!normalized) {
+    fail("Task cannot be empty.");
+  }
+
+  return normalized;
+}
+
+function expandHome(value) {
+  if (value.startsWith("~/")) {
+    return path.join(os.homedir(), value.slice(2));
+  }
+  return value;
+}
+
+function samePath(left, right) {
+  return path.resolve(left) === path.resolve(right);
+}
+
+function runInherit(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    stdio: "inherit",
+    cwd: options.cwd,
+    env: process.env,
+  });
+  if (result.status !== 0) {
+    process.exit(result.status || 1);
+  }
+}
+
+function runQuiet(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    stdio: "ignore",
+    cwd: options.cwd,
+    env: process.env,
+  });
+  return result.status === 0;
+}
+
+function runCapture(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    encoding: "utf8",
+    cwd: options.cwd,
+    env: process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  if (options.check !== false && result.status !== 0) {
+    fail((result.stderr || `Command failed: ${command} ${args.join(" ")}`).trim());
+  }
+
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+  };
+}
+
+function fail(message, code = 1) {
+  console.error(`dev: ${message}`);
+  process.exit(code);
+}
+
+main().catch((error) => {
+  fail(error?.message || String(error));
+});

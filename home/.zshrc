@@ -112,11 +112,6 @@ if command -v mise &> /dev/null; then
     eval "$(mise activate zsh)"
 fi
 
-# zoxide (smarter cd)
-if command -v zoxide &> /dev/null; then
-    eval "$(zoxide init zsh)"
-fi
-
 # atuin (better history)
 if command -v atuin &> /dev/null; then
     eval "$(atuin init zsh --disable-up-arrow)"
@@ -165,7 +160,7 @@ fi
 if command -v zoxide &> /dev/null; then
     function cd() {
         if (( $+functions[__zoxide_z] )); then
-            __zoxide_z "$@"
+            __zoxide_z "$@" || builtin cd "$@"
         else
             builtin cd "$@"
         fi
@@ -267,12 +262,23 @@ mkcd() {
     mkdir -p "$1" && cd "$1"
 }
 
+# Hybrid: herdr task contexts (the `dev` binary) for subcommands and
+# registered repo aliases; plain cd helper for everything else.
 dev() {
+    if [[ $# -gt 0 ]]; then
+        case "$1" in
+            pick|ls|branch|cross|done|refresh|bootstrap|sync|save|pr|help|-h|--help|--knows)
+                command dev "$@"; return ;;
+        esac
+        if command dev --knows "$1" 2>/dev/null; then
+            command dev "$@"; return
+        fi
+    fi
     cd "$DEV_HOME/${1:-}"
 }
 
 cc() {
-    claude --dangerously-skip-permissions --continue "$@"
+    claude --dangerously-skip-permissions "$@"
 }
 
 # SSH Agent (if not already running)
@@ -299,3 +305,8 @@ export PATH="/home/laurence/.strix/bin:$PATH"
 . "$HOME/.vite-plus/env"
 
 . "$HOME/.local/bin/env"
+
+# zoxide (smarter cd) - must be last per `zoxide doctor`
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init zsh)"
+fi
