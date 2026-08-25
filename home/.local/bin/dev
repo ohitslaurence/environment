@@ -58,6 +58,9 @@ async function main() {
     case "refresh":
       cmdRefresh(rest);
       return;
+    case "prune":
+      cmdPrune(rest);
+      return;
     case "save":
       requireInsideGitRepo("dev save");
       requireCommand("gritty");
@@ -94,6 +97,7 @@ Usage:
   dev repos [--json]
   dev sync
   dev refresh [repo]
+  dev prune [--dry-run]
   dev bootstrap
   dev save
   dev pr
@@ -391,6 +395,90 @@ function cmdDone(rest) {
   ]);
 }
 
+// Worktrees leak whenever a herdr workspace dies without `dev done` (closed
+// in the herdr UI, session reset, reboot): the workspace list is dev's only
+// record of live contexts, so the checkout stays on disk with nothing left
+// pointing at it. Reconcile from git's own worktree registry instead: any
+// <repo>-wt-* checkout that no live context accounts for is stale. Clean ones
+// are removed (branch kept, same contract as `dev done`); dirty ones are
+// only reported — never deleted.
+function cmdPrune(rest) {
+  requireCommand("git");
+  requireCommand("herdr");
+
+  const dryRun = rest.includes("--dry-run") || rest.includes("-n");
+  const repos = loadRepos();
+  const contexts = listContexts();
+  const stale = findStaleWorktrees(repos, contexts);
+
+  let removed = 0;
+  let skipped = 0;
+  for (const { repo, path: wtPath, dirty } of stale) {
+    if (dirty) {
+      console.log(`prune: skipping ${wtPath} (uncommitted changes)`);
+      skipped += 1;
+      continue;
+    }
+    if (dryRun) {
+      console.log(`prune: would remove ${wtPath}`);
+      removed += 1;
+      continue;
+    }
+    console.log(`prune: removing ${wtPath} (branch kept)`);
+    runInherit("git", ["-C", repo.path, "worktree", "remove", wtPath]);
+    removed += 1;
+  }
+
+  console.log(
+    `prune: ${removed} ${dryRun ? "stale" : "removed"}, ${skipped} skipped`,
+  );
+}
+
+// A worktree is live if a context checks it out directly, or if it is a
+// sibling checkout of a live cross context (cross siblings share the bare
+// task branch but have no workspace of their own — cmdDone has the same
+// special case).
+function findStaleWorktrees(repos, contexts) {
+  const trackedPaths = new Set(
+    contexts.map((ctx) => path.resolve(ctx.worktree.checkout_path)),
+  );
+  const liveLabels = new Set(contexts.map((ctx) => ctx.label));
+
+  const stale = [];
+  for (const repo of Object.values(repos)) {
+    runQuiet("git", ["-C", repo.path, "worktree", "prune"]);
+    const listing = runCapture(
+      "git",
+      ["-C", repo.path, "worktree", "list", "--porcelain"],
+      { check: false },
+    ).stdout;
+    for (const block of listing.split("\n\n")) {
+      const match = block.match(/^worktree (.+)$/m);
+      if (!match) {
+        continue;
+      }
+      const wtPath = match[1];
+      if (!wtPath.startsWith(`${repo.path}-wt-`)) {
+        continue; // canonical checkout, or not created by dev
+      }
+      if (trackedPaths.has(path.resolve(wtPath))) {
+        continue;
+      }
+      const branch = currentBranchName(wtPath);
+      if (branch && !branch.includes(LABEL_SEP) && liveLabels.has(branch)) {
+        continue; // sibling of a live cross context
+      }
+      const dirty = runCapture(
+        "git",
+        ["-C", wtPath, "status", "--porcelain"],
+        { check: false },
+      ).stdout.trim();
+      stale.push({ repo, path: wtPath, dirty: Boolean(dirty) });
+    }
+  }
+  return stale;
+}
+
 function cmdRefresh(rest) {
   const repos = loadRepos();
   const alias = rest[0] || inferCurrentRepoAlias();
@@ -441,7 +529,6 @@ function cmdLs() {
   const contexts = listContexts();
   if (contexts.length === 0) {
     console.log("No active contexts.");
-    return;
   }
 
   for (const ctx of contexts) {
@@ -451,6 +538,13 @@ function cmdLs() {
         (ctx.agent_status || "unknown").padEnd(8),
         ctx.worktree.checkout_path,
       ].join(" "),
+    );
+  }
+
+  const stale = findStaleWorktrees(repos, contexts);
+  if (stale.length > 0) {
+    console.log(
+      `\ndev: ${stale.length} stale worktree${stale.length === 1 ? "" : "s"} on disk — run 'dev prune' to clean up.`,
     );
   }
 }
