@@ -32,10 +32,6 @@ Treat Strix findings with extra care: a false negative on a real security issue 
 ### `/prr` skill (`<!-- automated-pr-review -->`)
 Craft-focused review posted via the user's GitHub account. Comments contain `<!-- automated-pr-review -->` as the last line. These focus on architecture, readability, testing quality, and PR clarity — not correctness.
 
-**Process comments from all three sources.** Ignore comments from humans or other bots that don't match these patterns.
-
-**Your job is to use your full codebase understanding to judge each finding on its merits.**
-
 ## Step 1: Gather PR Context
 
 Extract the owner, repo, and PR number from `$ARGUMENTS`. Supports both URLs (`https://github.com/owner/repo/pull/123`) and plain numbers (requires being in the repo).
@@ -63,26 +59,11 @@ gh pr checkout <number> --repo <owner/repo>
 
 ## Step 2: Understand the PR
 
-**If you did not write the code in this PR**, you must build a thorough mental model before judging any findings:
-
-1. Read the PR description and commit messages to understand the author's intent
-2. Read the full diff carefully — understand what changed and why
-3. Read the surrounding code that the diff touches — understand the broader context (conventions, patterns, framework usage)
-4. Look at recent commits on the branch to understand the evolution of the changes
-
-You need to understand the code as well as the person who wrote it before you can judge whether a finding is valid. Don't rush this step.
-
-If you wrote the code in this PR, you already have this context — move on.
+If you didn't write this code, read the description, commits, diff, and the code the diff touches until you can judge each finding as well as the author could. If you wrote it, move on.
 
 ## Step 3: Ask Before Assuming
 
-Some findings require domain knowledge or context you may not have. **If a finding is ambiguous and you can't determine validity from the code alone, ask the user.** Examples:
-
-- "Greptile says X is a bug, but it looks intentional. Was this by design?"
-- "This finding suggests adding validation, but I'm not sure if this endpoint is internal-only. Should I add it?"
-- "The reviewer flagged missing tests — should I add them or is that out of scope for this cleanup?"
-
-**Do not guess. Do not silently skip. Ask.**
+Some findings need context the code can't give you: whether a flagged behaviour is intentional, whether an endpoint is internal-only, whether missing tests are in scope for this cleanup. Triage everything you can decide first, then ask about the ambiguous ones together rather than guessing or skipping them silently. For example: "Greptile says X is a bug, but it looks intentional. Was this by design?"
 
 ## Step 4: Triage Each Finding
 
@@ -105,7 +86,7 @@ gh api repos/<owner>/<repo>/pulls/comments/<comment_id>/reactions -f content="+1
 gh api repos/<owner>/<repo>/pulls/comments/<comment_id>/reactions -f content="-1"
 gh api repos/<owner>/<repo>/pulls/comments/<comment_id>/reactions -f content="rocket"
 
-# Reply (required when giving thumbs down, to train Greptile)
+# Reply
 gh api repos/<owner>/<repo>/pulls/<number>/comments -f body="<explanation>" -f commit_id="<sha>" -f path="<path>" -f line=<line> -f side="RIGHT" -f in_reply_to=<comment_id>
 ```
 
@@ -113,7 +94,7 @@ For top-level issue/summary comments: do NOT react. They're just aggregates.
 
 ### Reacting by source
 
-**Greptile comments** — react with 👍/👎/🚀 as described above. Thumbs-down replies train Greptile's learning system.
+**Greptile comments** — react with 👍/👎/🚀 as described above. Every 👎 gets a reply (see below).
 
 **Strix comments** — react with 👍/👎/🚀 as described above (it's a separate bot account, so emoji reactions are appropriate). When you 👎 a Strix finding, reply explaining why it's not a real security issue — be specific about the compensating control or why the path isn't reachable, so a reviewer reading later can verify your reasoning.
 
@@ -124,14 +105,14 @@ For top-level issue/summary comments: do NOT react. They're just aggregates.
 
 ### Writing thumbs-down replies (Greptile only)
 
-When you 👎 a Greptile finding, you MUST reply explaining why. Keep it brief and specific — this trains Greptile:
+Reply to every 👎 so Greptile learns from it. Be brief and specific:
 - ✅ `"This middleware intentionally catches all exceptions; HTTPException is re-thrown upstream in the error handler chain"`
 - ✅ `"Admin endpoints don't support transaction lookup by design — documented in API spec"`
 - ❌ `"Not applicable"` (too vague, doesn't help Greptile learn)
 
 ## Step 5: Fix Valid Issues
 
-Make the code changes for all findings you classified as valid. Work through them methodically.
+Make the code changes for all findings you classified as valid.
 
 ## Step 6: Commit and Push
 

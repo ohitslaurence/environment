@@ -41,33 +41,20 @@ gh pr checkout <number> --repo <owner/repo>
 
 ## Step 2: Understand the PR
 
-Read the PR description, the full diff, and the surrounding code that the diff touches. You need to understand:
-
-- What was changed and why
-- The repo's established patterns and conventions
-- The domain and business context
+Read the description, the diff, and the code it touches. You'll need this to brief the agents and to write the summary.
 
 ## Step 3: Launch Review Agents
 
-Spawn **four agents in parallel** using the Agent tool. Each agent receives:
-- The PR owner, repo, and number (so they can use `gh` CLI)
-- The PR description and branch name
-- Their specific review focus (below)
-- Instructions to read existing comments before posting to avoid duplication
+Spawn four agents in parallel with the Agent tool, one per lens below. Build each agent's prompt from three parts, pasted verbatim:
 
-Each agent should checkout the PR branch, read the diff, read the relevant source files for context, and then post inline comments for anything they find.
+1. The shared preamble:
 
-### Agent prompts
+   > You are reviewing PR #<number> in <owner>/<repo> for **<lens>**. The PR branch is already checked out in this working directory; do not run `gh pr checkout`. Read the diff (`gh pr diff <number> --repo <owner/repo>`) and the surrounding source. Before posting, read existing comments (`gh api repos/<owner>/<repo>/pulls/<number>/comments`) and skip anything already raised by `greptile-apps[bot]`, humans, or comments containing `<!-- automated-pr-review -->`. Post inline comments in the Comment Format below. Only post findings genuinely worth raising.
 
-Use the detailed instructions in the sections below for each agent. Every agent must follow the **Comment Format** rules.
+2. The lens-specific "Look for" list.
+3. The full **Comment Format** section, including Calibration.
 
----
-
-### Agent 1: Architectural Fit
-
-You are reviewing PR #<number> in <owner>/<repo> for **architectural fit**.
-
-Checkout the branch, read the diff, and read the surrounding source code. Look for:
+### Lens 1: Architectural Fit
 
 - **Pattern adherence**: Does this PR follow the patterns already established in the codebase? If it introduces a new pattern, is the old one migrated or do they now coexist?
 - **Code placement**: Is the code in the right module, layer, and file? Would someone looking for this logic find it where it lives?
@@ -75,20 +62,7 @@ Checkout the branch, read the diff, and read the surrounding source code. Look f
 - **Dependency direction**: Do high-level modules depend on low-level details? Are there circular or surprising dependencies introduced?
 - **Reuse**: Are there existing utilities, helpers, or patterns being reinvented instead of reused?
 
-Before posting, read existing comments from `greptile-apps[bot]` and any containing `<!-- automated-pr-review -->` to avoid duplicating findings:
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/comments
-```
-
-Post inline comments using the comment format below. Only post findings that are genuinely worth raising.
-
----
-
-### Agent 2: Craft & Readability
-
-You are reviewing PR #<number> in <owner>/<repo> for **craft and readability**.
-
-Checkout the branch, read the diff, and read the surrounding source code. Look for:
+### Lens 2: Craft & Readability
 
 - **Code smells**: God functions (doing too many things), primitive obsession, feature envy, unnecessary indirection, overly clever code
 - **Naming**: Will someone understand these names in 6 months without context? Do they convey intent or describe implementation?
@@ -96,20 +70,9 @@ Checkout the branch, read the diff, and read the surrounding source code. Look f
 - **Consistency**: Does the style and approach match the surrounding code? Are conventions followed?
 - **Dead weight**: Anything added but unused, commented-out code left behind, old code that should've been cleaned up as part of this change
 
-Before posting, read existing comments from `greptile-apps[bot]` and any containing `<!-- automated-pr-review -->` to avoid duplicating findings:
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/comments
-```
+### Lens 3: Testing Integrity
 
-Post inline comments using the comment format below. Only post findings that are genuinely worth raising.
-
----
-
-### Agent 3: Testing Integrity
-
-You are reviewing PR #<number> in <owner>/<repo> for **testing integrity**.
-
-Checkout the branch, read the diff, and read the test files and the code they test. Look for:
+Read the test files and the code they test.
 
 - **Behavior vs implementation**: Are tests asserting outcomes, or are they tightly coupled to internal implementation details (mocking internals, asserting call counts)?
 - **Boundary correctness**: Are unit tests where they should be unit, integration where they should be integration? Is the testing level appropriate for what's being tested?
@@ -117,20 +80,9 @@ Checkout the branch, read the diff, and read the test files and the code they te
 - **Edge cases & failure modes**: Is only the happy path tested? Are error conditions, empty inputs, boundary values covered?
 - **Test changes**: If existing tests were modified, was it to accommodate new behavior or to paper over a problem? Weakened assertions are a red flag.
 
-Before posting, read existing comments from `greptile-apps[bot]` and any containing `<!-- automated-pr-review -->` to avoid duplicating findings:
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/comments
-```
+### Lens 4: PR Clarity & Completeness
 
-Post inline comments using the comment format below. Only post findings that are genuinely worth raising.
-
----
-
-### Agent 4: PR Clarity & Completeness
-
-You are reviewing PR #<number> in <owner>/<repo> for **PR clarity and completeness**.
-
-Read the PR description, commit messages, and the full diff. Look for:
+Read the PR description, commit messages, and the full diff.
 
 - **Description accuracy**: Does the PR description match what was actually done? Are there undocumented changes?
 - **Scope**: Is this one logical change, or several bundled together? Are there drive-by changes that should be separate PRs?
@@ -138,19 +90,10 @@ Read the PR description, commit messages, and the full diff. Look for:
 - **Loose ends**: Are there TODO/FIXME/HACK markers introduced without corresponding issues? Are there incomplete implementations?
 - **Changelog-worthy omissions**: Are there breaking changes, API changes, or migration requirements not called out?
 
-Before posting, read existing comments from `greptile-apps[bot]` and any containing `<!-- automated-pr-review -->` to avoid duplicating findings:
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/comments
-```
-
-For this agent, some findings may be better as a top-level PR comment rather than inline. Use your judgement — if it's about a specific line, post inline. If it's about the PR as a whole (scope, description accuracy), post as a top-level comment using:
+Findings about the PR as a whole (scope, description accuracy) go in a top-level comment rather than inline:
 ```bash
 gh api repos/<owner>/<repo>/issues/<number>/comments -f body="<comment>"
 ```
-
-Post using the comment format below. Only post findings that are genuinely worth raising.
-
----
 
 ## Comment Format
 
