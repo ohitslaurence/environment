@@ -54,6 +54,13 @@ Mechanics live in `orch` (see `orch` with no args). Herdr internals are in the
   user exactly which are still running and what you will do when they
   finish.
 
+## Ready briefs
+
+`briefs/sentinel-triage.md` in this skill's directory: Lighthouse Sentinel
+report triage. Fill `{{REPORT_REF}}` and paste the stored report into
+`{{REPORT_BODY}}` (fetch it with the `executor` tool `get_sentinel_report`).
+Repo alias for workers: `lighthouse`.
+
 ## Phases for investigate-then-fix work
 
 Phase 1, scout: workers investigate and write reports; no pushes. Phase 2,
