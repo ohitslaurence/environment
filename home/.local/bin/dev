@@ -459,7 +459,7 @@ function cmdDone(rest) {
           `Uncommitted changes in ${checkout} — commit/push them, or 'dev done --force' to discard.`,
         );
       }
-      if (!samePath(checkout, process.cwd()) && inUseByProcess(checkout)) {
+      if (!samePath(checkout, process.cwd()) && inUseByProcess(checkout, workspacePids(ctx.workspace_id))) {
         fail(`A process is still running in ${checkout} — stop it, or 'dev done --force'.`);
       }
     }
@@ -745,14 +745,34 @@ function listAgentWorkspaces() {
 
 // Worktree is in use if any running process has its cwd inside it (dev servers,
 // shells, agents herdr doesn't know about). Linux via /proc, macOS via lsof.
-function inUseByProcess(checkout) {
+// Shell pids of every pane in a herdr workspace; processes descending from
+// them are owned by the workspace and are not "in use" from its own point of view.
+function workspacePids(workspaceId) {
+  const pids = new Set();
+  try {
+    for (const p of herdrJson(["pane", "list", "--workspace", workspaceId]).result.panes) {
+      const info = runCapture("herdr", ["pane", "process-info", "--pane", p.pane_id], { check: false });
+      try { pids.add(JSON.parse(info.stdout).result.process_info.shell_pid); } catch { /* ignore */ }
+    }
+  } catch { /* no herdr */ }
+  return pids;
+}
+
+function inUseByProcess(checkout, ignoreAncestors = new Set()) {
   const root = path.resolve(checkout);
   if (process.platform === "linux") {
+    const ppid = (pid) => {
+      try { return Number(fs.readFileSync(`/proc/${pid}/stat`, "utf8").split(") ")[1].split(" ")[1]); } catch { return 0; }
+    };
+    const ownedByIgnored = (pid) => {
+      for (let cur = pid, i = 0; cur > 1 && i < 64; cur = ppid(cur), i++) if (ignoreAncestors.has(cur)) return true;
+      return false;
+    };
     for (const pid of fs.readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
       if (Number(pid) === process.pid) continue;
       let cwd;
       try { cwd = fs.readlinkSync(`/proc/${pid}/cwd`); } catch { continue; }
-      if (cwd === root || cwd.startsWith(`${root}${path.sep}`)) return true;
+      if ((cwd === root || cwd.startsWith(`${root}${path.sep}`)) && !ownedByIgnored(Number(pid))) return true;
     }
     return false;
   }
@@ -1023,7 +1043,7 @@ function ensureTabs(workspaceId, defaultCwd, extraTabs = [], paneName = "") {
     }
     const created = runCapture(
       "herdr",
-      ["tab", "create", "--workspace", workspaceId, "--label", name, "--cwd", cwd, "--no-focus", "--json"],
+      ["tab", "create", "--workspace", workspaceId, "--label", name, "--cwd", cwd, "--no-focus"],
       { check: false },
     );
     // Name the agent pane after the context so the agents panel reads the task.

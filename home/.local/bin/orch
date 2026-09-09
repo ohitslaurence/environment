@@ -90,10 +90,20 @@ PY
   if [[ "$kind" == codex ]] && herdr agent read "$name" --source visible 2>/dev/null | grep -q "Hooks need review"; then
     herdr agent send-keys "$name" down enter >/dev/null; sleep 3
   fi
-  herdr agent wait "$name" --until idle --timeout 60000 >/dev/null 2>&1 || true
+  # Wait for the composer, not just herdr's idle: the harness reports ready
+  # before it accepts input, and a prompt sent then is silently lost.
+  local ready_re='Ask Codex to do anything'; [[ "$kind" == claude ]] && ready_re='❯'
+  for _ in $(seq 1 60); do
+    herdr agent read "$name" --source visible 2>/dev/null | grep -q "$ready_re" && break
+    sleep 1
+  done
 
   # 4. deliver the brief as the first prompt (no wait: supervision is via status log)
-  herdr agent prompt "$name" "$(cat "$dir/brief.md")" >/dev/null
+  herdr agent prompt "$name" "$(cat "$dir/brief.md")" >/dev/null || die "brief delivery failed; check: orch log $name"
+  sleep 3
+  if ! herdr agent read "$name" --source visible 2>/dev/null | grep -q "Working\|working:\|esc to interrupt"; then
+    echo "orch: warning: no working signal after brief; verify with: orch log $name" >&2
+  fi
   printf 'name=%s\nkind=%s\nrepo=%s\nworkspace=%s\npane=%s\nworktree=%s\nstarted=%s\n' \
     "$name" "$kind" "$repo" "$ws" "$pane" "$worktree" "$(date -u +%FT%TZ)" > "$dir/meta"
   echo "started $name ($kind) in $ws $pane -> $worktree"
@@ -141,7 +151,13 @@ cmd_done() {
   [[ -d "$ORCH_HOME/$name" ]] || die "unknown worker $name"
   local st; st=$(state_of "$name")
   if ! is_terminal "${st:-working}" && [[ "${1:-}" != "--force" ]]; then die "$name is not terminal (state: ${st:-working}); pass --force to stop it anyway"; fi
-  herdr agent send-keys "$name" ctrl+c >/dev/null 2>&1 || true
+  # Quit the agent politely so the pane shell is all that's left.
+  local kind; kind=$(sed -n 's/^kind=//p' "$ORCH_HOME/$name/meta")
+  local quit="/quit"; [[ "$kind" == claude ]] && quit="/exit"
+  herdr agent send-keys "$name" esc >/dev/null 2>&1 || true
+  herdr pane send-text "$(sed -n 's/^pane=//p' "$ORCH_HOME/$name/meta")" "$quit" >/dev/null 2>&1 || true
+  sleep 1; herdr pane send-keys "$(sed -n 's/^pane=//p' "$ORCH_HOME/$name/meta")" enter >/dev/null 2>&1 || true
+  sleep 2
   command dev done "$name" "$@" || true
   mkdir -p "$ORCH_HOME/.archive"; mv "$ORCH_HOME/$name" "$ORCH_HOME/.archive/$name-$(date +%Y%m%d%H%M%S)"
   echo "archived $name"
