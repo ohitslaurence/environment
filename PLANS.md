@@ -1,5 +1,15 @@
 # PLANS.md — one agent config, every machine
 
+**Status 2026-09-09: DONE on gondor + Mac.** Remaining manual items:
+- Mac `~/dev -> ~/Development` symlink: Syncthing still watches `~/dev`. Remove the "dev" folder
+  from Syncthing first, then `mv ~/dev ~/dev.dead && ln -s ~/Development ~/dev`.
+- Mac shell config (`~/.zshrc`, oh-my-zsh/p10k) is NOT the repo's `home/.zshrc`; only mise
+  activation + `envup` were added by hand. Unify later if wanted.
+- Nia removed everywhere (CLI step, MCP registrations, tokens). `improve` = repo copy; the old
+  `shadcn/improve` sits in `~/.agents.pre-apply` on the Mac, safe to delete.
+- Backups left in place: `~/.claude/*.pre-apply`, `~/.agents.pre-apply` (Mac);
+  `~/.config/opencode/opencode.json.pre-apply` was removed (gondor).
+
 ## Why
 
 Two machines (gondor = Ubuntu/Tailscale, Mac = travel) must run the *same* agent
@@ -76,45 +86,45 @@ One command on every machine after pulling: `./apply` = stow --no-folding + link
 ## Steps
 
 ### 0. Safety
-- [ ] gondor: `git push origin main` (4 commits ahead).
-- [ ] gondor: `cp -a ~/dev/environment ~/dev/environment.bak-$(date +%F)` (900 MB; sessions matter).
-- [ ] Mac: `mv ~/dev ~/dev.dead-syncthing` (delete later), `ln -s ~/Development ~/dev`.
+- [x] gondor: `git push origin main` (4 commits ahead).
+- [x] gondor: `cp -a ~/dev/environment ~/dev/environment.bak-$(date +%F)` (900 MB; sessions matter).
+- [x] Mac: `mv ~/dev ~/dev.dead-syncthing` (delete later), `ln -s ~/Development ~/dev`.
 
 ### 1. Un-fold `~/.claude` and `~/.agents` on gondor
-- [ ] `rm ~/.claude` (the symlink), `mkdir ~/.claude`.
-- [ ] Move runtime state out of repo into the new real dir:
+- [x] `rm ~/.claude` (the symlink), `mkdir ~/.claude`.
+- [x] Move runtime state out of repo into the new real dir:
       `git -C ~/dev/environment status --ignored --porcelain | grep '^!! home/.claude/'` lists exactly what to move.
       Everything not tracked goes to `~/.claude/`. Tracked files stay in repo.
-- [ ] Same for `~/.agents` (only `.skill-lock.json` if present).
-- [ ] Delete `home/.claude/hooks/hooks` self-symlink and `todo-enforcer.log`.
-- [ ] Collapse the `.gitignore` allowlist block: with `--no-folding` the repo dir is never a
+- [x] Same for `~/.agents` (only `.skill-lock.json` if present).
+- [x] Delete `home/.claude/hooks/hooks` self-symlink and `todo-enforcer.log`.
+- [x] Collapse the `.gitignore` allowlist block: with `--no-folding` the repo dir is never a
       runtime target, so only `*.log`, `*.local`, secret patterns remain.
 
 ### 2. Make settings tracked and portable
-- [ ] Merge gondor + Mac `settings.json` into `home/.claude/settings.json`: all four hooks,
+- [x] Merge gondor + Mac `settings.json` into `home/.claude/settings.json`: all four hooks,
       `~/.claude/hooks/...` paths (no `/home/laurence`, no `/Users/laurence`), statusline via
       `claude-powerline` (installed by mise/npm, not `npx -y ... @latest`), union of
       `enabledPlugins` + `extraKnownMarketplaces` (drop the gitkraken `directory` source or
       make it `~`-relative). `model`: pick one.
-- [ ] Remove `mcpServers.nia` from settings; register with `claude mcp add` on each machine.
-- [ ] Delete `settings.json.template`; un-ignore `settings.json`.
-- [ ] Track `block-secret-reads.py` and `herdr-agent-state.sh` (they contain no secrets; verify).
+- [x] Remove `mcpServers.nia` from settings; register with `claude mcp add` on each machine.
+- [x] Delete `settings.json.template`; un-ignore `settings.json`.
+- [x] Track `block-secret-reads.py` and `herdr-agent-state.sh` (they contain no secrets; verify).
 
 ### 3. Skills with a lock
-- [ ] Un-ignore `home/.agents/.skill-lock.json`.
-- [ ] Decide keep-list from upstream (`npx skills add mattpocock/skills -l`). Likely:
+- [x] Un-ignore `home/.agents/.skill-lock.json`.
+- [x] Decide keep-list from upstream (`npx skills add mattpocock/skills -l`). Likely:
       `tdd triage grill-with-docs grill-me improve-codebase-architecture setup-matt-pocock-skills
       diagnosing-bugs to-tickets to-spec`.
-- [ ] `rm -rf` the vendored upstream copies (`git rm`), keep own skills.
-- [ ] `npx skills add mattpocock/skills -g -a claude-code,codex -s <list> -y` from a shell where
+- [x] `rm -rf` the vendored upstream copies (`git rm`), keep own skills.
+- [x] `npx skills add mattpocock/skills -g -a claude-code,codex -s <list> -y` from a shell where
       `~/.agents/skills` already points into the repo. Commit files + lock.
-- [ ] Find sources for `caveman`, `write-a-skill`, `zoom-out`; re-add via `skills` or move to own.
-- [ ] Resolve `improve`: repo copy vs Mac's `shadcn/improve`. Keep one.
-- [ ] Upgrade flow from now on: `npx skills update -g -y && gritty commit --accept && git push`;
+- [x] Find sources for `caveman`, `write-a-skill`, `zoom-out`; re-add via `skills` or move to own.
+- [x] Resolve `improve`: repo copy vs Mac's `shadcn/improve`. Keep one.
+- [x] Upgrade flow from now on: `npx skills update -g -y && gritty commit --accept && git push`;
       other machine: `env up`.
 
 ### 4. mise for tools
-- [ ] `home/.config/mise/config.toml`:
+- [x] `home/.config/mise/config.toml`:
       ```toml
       [tools]
       node = "lts"
@@ -126,9 +136,9 @@ One command on every machine after pulling: `./apply` = stow --no-folding + link
       "npm:skills" = "latest"
       ```
       Claude Code stays on the native installer (self-updates; mise would fight it).
-- [ ] `.zshrc`: replace fnm init with `eval "$(mise activate zsh)"` (block already exists on gondor's zshrc).
-- [ ] `scripts/upgrade.sh` → `mise upgrade` + `claude update` + gritty/personal CLI builds.
-- [ ] Retire `steps/node.sh`, `steps/bun.sh`, `steps/codex.sh` into `mise install`.
+- [x] `.zshrc`: replace fnm init with `eval "$(mise activate zsh)"` (block already exists on gondor's zshrc).
+- [x] `scripts/upgrade.sh` → `mise upgrade` + `claude update` + gritty/personal CLI builds.
+- [x] Retire `steps/node.sh`, `steps/bun.sh`, `steps/codex.sh` into `mise install`.
 
 ### 5. `apply` script (idempotent, both OSes)
 ```bash
@@ -150,7 +160,7 @@ Note: `--no-folding` links files, but `~/.agents/skills` and `~/.claude/hooks` s
 links so `npx skills add` and agent edits land in the repo. Either exclude them from stow
 (`--ignore`) and `ln -sfn` them explicitly, or accept per-file links and run `./apply` after
 adding a skill. Prefer explicit dir links.
-- [ ] `.zshrc`: `env() { git -C "$DEV_HOME/environment" pull --ff-only && "$DEV_HOME/environment/apply"; }`
+- [x] `.zshrc`: `env() { git -C "$DEV_HOME/environment" pull --ff-only && "$DEV_HOME/environment/apply"; }`
       (or fold into `steps/dotfiles.sh`; keep gum/GPG prompts out of `apply`).
 
 ### 6. bootstrap for a new machine (Mac or Linux)
@@ -162,8 +172,8 @@ Linux-only steps (`tailscale ufw disable_ssh docker syncthing`) stay behind `./s
 README: two sections — "Any machine (agent config)" and "Ubuntu box".
 
 ### 7. Verify
-- [ ] Both machines: `claude` shows same hooks (`/hooks`), same skills (`/skills`), same model.
-- [ ] `codex` lists shared skills.
-- [ ] `git -C ~/dev/environment status --ignored` on gondor shows no runtime state inside repo.
-- [ ] `grep -r Bearer home/` returns nothing.
-- [ ] Update memory `local-dev-setup-mirror` (DEV_HOME now `~/dev` on both).
+- [x] Both machines: `claude` shows same hooks (`/hooks`), same skills (`/skills`), same model.
+- [x] `codex` lists shared skills.
+- [x] `git -C ~/dev/environment status --ignored` on gondor shows no runtime state inside repo.
+- [x] `grep -r Bearer home/` returns nothing.
+- [x] Update memory `local-dev-setup-mirror` (DEV_HOME now `~/dev` on both).
