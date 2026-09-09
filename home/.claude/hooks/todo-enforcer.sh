@@ -4,12 +4,14 @@
 # Blocks exit when incomplete todos exist in the session.
 #
 # Usage: Configure in ~/.claude/settings.json under hooks.Stop
-# Disable: Set {"enabled": false} in ~/.claude/hooks/todo-enforcer.config.json
+# Disable: Set {"enabled": false} in ~/.claude/state/todo-enforcer.config.json
 
 set -euo pipefail
 
-readonly CONFIG_FILE="$HOME/.claude/hooks/todo-enforcer.config.json"
-readonly DEBUG_LOG="$HOME/.claude/hooks/todo-enforcer.log"
+readonly STATE_DIR="$HOME/.claude/state"
+readonly CONFIG_FILE="$STATE_DIR/todo-enforcer.config.json"
+readonly DEBUG_LOG="$STATE_DIR/todo-enforcer.log"
+mkdir -p "$STATE_DIR" 2>/dev/null || true
 readonly MAX_CONSECUTIVE_BLOCKS=10
 
 log() {

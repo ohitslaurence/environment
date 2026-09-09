@@ -1,0 +1,14 @@
+# Tool versions shared by every machine. `mise install` after pull, `mise upgrade` to bump.
+# Claude Code is NOT here on purpose: the native installer self-updates (`claude update`).
+[tools]
+node = "lts"
+bun = "latest"
+gh = "latest"
+uv = "latest"
+jq = "latest"
+"npm:@openai/codex" = "latest"
+"npm:@owloops/claude-powerline" = "latest"
+"npm:skills" = "latest"
+
+[settings]
+experimental = true

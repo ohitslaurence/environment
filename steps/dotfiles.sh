@@ -38,14 +38,11 @@ if [[ -f ~/.gitconfig ]] && [[ ! -L ~/.gitconfig ]]; then
     mv ~/.gitconfig ~/.gitconfig.backup
 fi
 
-# Stow dotfiles
+# Stow the shell layer (see home/.stow-local-ignore for what stow does NOT touch)
 stow -v -R -t ~ home
 
-# Post-stow symlinks (stow doesn't handle nested dirs in existing directories well)
-mkdir -p ~/.config/opencode ~/.codex
-ln -sf ~/.claude/CLAUDE.md ~/.config/opencode/AGENTS.md
-ln -sf ~/.claude/CLAUDE.md ~/.codex/AGENTS.md
-ln -sfn ~/dev/environment/home/.claude/hooks ~/.claude/hooks
+# Agent layer (Claude / Codex / OpenCode / skills / mise): portable, same script on macOS
+"$REPO_DIR/apply"
 
 # Auto-install tmux plugins listed in ~/.tmux.conf (resurrect, continuum, etc.)
 # Requires the tmux step to have run first (clones TPM into ~/.tmux/plugins/tpm).
@@ -53,18 +50,6 @@ if [[ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]] && [[ -f "$HOME/.tmux.
     echo ""
     echo "Installing tmux plugins via TPM..."
     "$HOME/.tmux/plugins/tpm/bin/install_plugins"
-fi
-
-# Seed settings/opencode configs from templates if not already present.
-# These files are gitignored so users can extend them with machine-specific
-# secrets (extra MCP servers, API keys) without leaking to the repo.
-if [[ ! -f ~/.claude/settings.json ]]; then
-    cp "$REPO_DIR/home/.claude/settings.json.template" ~/.claude/settings.json
-    echo "Seeded ~/.claude/settings.json from template"
-fi
-if [[ ! -f ~/.config/opencode/opencode.json ]]; then
-    cp "$REPO_DIR/home/.config/opencode/opencode.json.template" ~/.config/opencode/opencode.json
-    echo "Seeded ~/.config/opencode/opencode.json from template"
 fi
 
 echo ""

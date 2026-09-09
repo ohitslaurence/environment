@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# One-shot setup of the portable agent layer on ANY machine (macOS or Linux).
+#   git clone https://github.com/ohitslaurence/environment.git ~/dev/environment
+#   ~/dev/environment/bootstrap
+# Linux box hardening (tailscale, ufw, docker, ...) is separate: ./setup
+set -euo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if ! command -v mise >/dev/null 2>&1; then
+  echo "installing mise"
+  curl -fsSL https://mise.run | sh
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+if ! command -v claude >/dev/null 2>&1; then
+  echo "installing Claude Code (native)"
+  curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+"$REPO/apply"
+
+grep -q 'mise activate' ~/.zshrc 2>/dev/null || cat <<'MSG'
+
+Add to ~/.zshrc (the repo's home/.zshrc already has this):
+  command -v mise >/dev/null && eval "$(mise activate zsh)"
+MSG
+cat <<'MSG'
+
+Per-machine (never synced):
+  claude mcp add -s user --transport http nia https://apigcp.trynia.ai/mcp \
+    --header "Authorization: Bearer $NIA_API_KEY"      # NIA_API_KEY from ~/.zshrc.local
+  gh auth login && claude   # log in
+MSG

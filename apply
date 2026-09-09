@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Link the portable agent layer (Claude / Codex / OpenCode config + skills + mise) into ~.
+# Idempotent. Works on macOS and Linux. Run after every `git pull`.
+#
+# Design: ~/.claude and ~/.codex stay REAL directories (runtime state lives there and never
+# enters the repo). Only the tracked config entries are symlinked in. ~/.agents is linked
+# wholesale because the `skills` CLI treats it as the canonical skill store and we want
+# `npx skills add -g` to land inside the repo.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+H="$REPO/home"
+
+link() { # link <target-in-repo> <path-in-home>
+  local src="$1" dst="$2"
+  if [[ -e "$dst" && ! -L "$dst" ]]; then
+    echo "  backup  $dst -> $dst.pre-apply"
+    mv "$dst" "$dst.pre-apply"
+  fi
+  ln -sfn "$src" "$dst"
+  echo "  link    $dst -> $src"
+}
+
+echo "apply: $REPO"
+
+# ── ~/.claude (real dir) ────────────────────────────────────────────────────
+# Migration: an older stow layout folded ~/.claude into a symlink to the repo, so
+# runtime state (sessions, credentials, history) lived inside the checkout. Unfold it:
+# keep tracked entries in the repo, move everything else to a real ~/.claude.
+if [[ -L ~/.claude ]]; then
+  target="$(cd -P ~/.claude && pwd)"
+  echo "  unfold  ~/.claude (was -> $target)"
+  rm ~/.claude && mkdir ~/.claude
+  for e in "$target"/.[!.]* "$target"/*; do
+    [[ -e "$e" || -L "$e" ]] || continue
+    n="$(basename "$e")"
+    case "$n" in CLAUDE.md|settings.json|hooks|commands) continue ;; esac
+    mv "$e" ~/.claude/"$n"
+  done
+fi
+# Runtime junk that older hook versions wrote next to their source
+[[ -L "$H/.claude/hooks/hooks" ]] && rm "$H/.claude/hooks/hooks"
+mkdir -p ~/.claude/skills ~/.claude/state
+for f in todo-enforcer.log todo-enforcer.config.json; do
+  [[ -f "$H/.claude/hooks/$f" ]] && mv "$H/.claude/hooks/$f" ~/.claude/state/"$f"
+done
+link "$H/.claude/CLAUDE.md"      ~/.claude/CLAUDE.md
+link "$H/.claude/settings.json"  ~/.claude/settings.json
+link "$H/.claude/hooks"          ~/.claude/hooks
+link "$H/.claude/commands"       ~/.claude/commands
+
+# ── ~/.agents (linked wholesale) ────────────────────────────────────────────
+if [[ -d ~/.agents && ! -L ~/.agents ]]; then
+  # Preserve anything the skills CLI installed here before we took over.
+  for s in ~/.agents/skills/*/; do
+    [[ -d "$s" ]] || continue
+    n="$(basename "$s")"
+    [[ -e "$H/.agents/skills/$n" ]] || { echo "  adopt   skill $n"; mv "$s" "$H/.agents/skills/$n"; }
+  done
+  mv ~/.agents ~/.agents.pre-apply
+fi
+link "$H/.agents" ~/.agents
+
+# ── per-skill links for Claude + Codex ──────────────────────────────────────
+# Claude reads ~/.claude/skills/<name>, Codex reads ~/.codex/skills/<name> (and owns
+# ~/.codex/skills/.system). Both get one symlink per skill; stale links are pruned.
+mkdir -p ~/.codex/skills
+for agentdir in ~/.claude/skills ~/.codex/skills; do
+  for l in "$agentdir"/*; do   # prune dangling links we created earlier
+    [[ -L "$l" && ! -e "$l" ]] && { echo "  prune   $l"; rm "$l"; }
+  done
+  for s in "$H"/.agents/skills/*/; do
+    n="$(basename "$s")"
+    ln -sfn "$HOME/.agents/skills/$n" "$agentdir/$n"
+  done
+done
+echo "  skills  $(ls "$H/.agents/skills" | wc -l | tr -d ' ') linked into ~/.claude/skills and ~/.codex/skills"
+
+# ── Codex / OpenCode instructions ───────────────────────────────────────────
+link ~/.claude/CLAUDE.md ~/.codex/AGENTS.md
+mkdir -p ~/.config/opencode
+link ~/.claude/CLAUDE.md               ~/.config/opencode/AGENTS.md
+link "$H/.config/opencode/opencode.json" ~/.config/opencode/opencode.json
+
+# ── mise (tool versions) ────────────────────────────────────────────────────
+mkdir -p ~/.config/mise
+link "$H/.config/mise/config.toml" ~/.config/mise/config.toml
+if command -v mise >/dev/null 2>&1; then
+  echo "  mise    install"
+  mise install --yes
+else
+  echo "  mise    not installed (run ./bootstrap)"
+fi
+
+# ── sanity ──────────────────────────────────────────────────────────────────
+if grep -rIl --exclude-dir=.git -E 'Bearer [A-Za-z0-9_-]{16,}' "$REPO" >/dev/null 2>&1; then
+  echo "!! a tracked file looks like it contains a bearer token:" >&2
+  grep -rIl --exclude-dir=.git -E 'Bearer [A-Za-z0-9_-]{16,}' "$REPO" >&2
+  exit 1
+fi
+echo "apply: done"

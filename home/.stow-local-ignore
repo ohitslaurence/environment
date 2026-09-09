@@ -1,0 +1,8 @@
+# Stow handles the SHELL layer only (.zshrc, .tmux.conf, .gitconfig, .ssh/config, .local/bin).
+# The agent layer is linked by ./apply so ~/.claude and ~/.codex stay real runtime dirs.
+^/\.claude
+^/\.agents
+^/\.codex
+^/\.config
+^/\.mcp\.json
+^/test

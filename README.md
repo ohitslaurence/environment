@@ -22,6 +22,38 @@ Tailnet ────────> VPS (Tailscale SSH only)
 - **Tailscale SSH** - Authenticate with your identity provider
 - **AWS SSO** - Temporary credentials, nothing long-lived on disk
 
+## Two layers
+
+| Layer | What | How it gets onto a machine |
+|---|---|---|
+| **Agent config** (any OS) | `~/.claude` instructions, settings, hooks; global skills for Claude + Codex + OpenCode; tool versions via mise | `./bootstrap` once, then `envup` (= `git pull && ./apply`) |
+| **Ubuntu box** | Tailscale, UFW, Docker, zsh/tmux, shell dotfiles via stow | `./setup` (interactive menu) |
+
+### Any machine (Mac or Linux): agent config only
+
+```bash
+git clone https://github.com/ohitslaurence/environment.git ~/dev/environment   # on a Mac: ln -s ~/Development ~/dev first
+~/dev/environment/bootstrap     # installs mise + Claude Code, then ./apply
+```
+
+`./apply` is idempotent and is the only thing that touches `~/.claude`, `~/.agents`, `~/.codex`,
+`~/.config/opencode`, `~/.config/mise`. Runtime state (sessions, credentials, history) stays in
+real directories; only tracked config is symlinked into the repo.
+
+Per machine, never synced: `claude mcp add ... nia` (token from `~/.zshrc.local`), `gh auth login`.
+
+### Keeping machines in sync
+
+```bash
+envup                                  # pull + re-link (run on the machine that is behind)
+npx skills update -g -y                # upgrade upstream skills; then gritty commit --accept && git push
+npx skills add mattpocock/skills -g -a claude-code,codex -s tdd,triage -y   # add more
+mise upgrade                           # bump tool versions (config.toml is tracked)
+```
+
+Skills live in `home/.agents/skills/`. Upstream ones are recorded in `home/.agents/.skill-lock.json`
+(tracked) so `skills update` knows their source; your own skills sit beside them with no lock entry.
+
 ## Setup from a fresh Ubuntu install
 
 Tested on Ubuntu 24.04 (Server / Cloud / Desktop). Plan ~30 min: most of it is automated, but several steps open browser windows for auth.

@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-VPS environment setup tool using GNU Stow for dotfile management. Interactive menu-driven setup with progress tracking.
+Two layers: (1) portable agent config — Claude/Codex/OpenCode instructions, hooks, settings, global skills, mise tool versions — linked into `~` by `./apply` on any OS; (2) Ubuntu VPS setup (`./setup`, `steps/*.sh`) with shell dotfiles via GNU Stow.
 
 ## Commands
 
 ```bash
-./setup                      # Interactive setup menu (gum-powered)
-scripts/upgrade.sh           # Upgrade Claude Code, OpenCode, Bun, Gritty, tmux plugins
+./bootstrap                  # New machine (any OS): mise + Claude Code + ./apply
+./apply                      # Re-link agent layer into ~ (idempotent; run after git pull)
+./setup                      # Ubuntu box: interactive setup menu (gum-powered)
+scripts/upgrade.sh           # Upgrade Claude Code, mise tools, skills, Gritty, tmux plugins
 scripts/analyze.sh           # Security analysis of the VPS
 ```
 
@@ -21,14 +23,20 @@ scripts/analyze.sh           # Security analysis of the VPS
 - State tracked in `~/.config/vps-setup/state.json`
 - Individual steps in `steps/*.sh` (run independently or via menu)
 
-### Dotfiles (GNU Stow)
-- `home/` directory mirrors `~/` structure
-- Running `stow home` from repo root symlinks files to `~`
-- Files like `home/.zshrc` become `~/.zshrc`
+### Agent layer (`./apply`)
+- `~/.claude`, `~/.codex` are REAL dirs (runtime state never enters the repo). `apply` symlinks only `CLAUDE.md`, `settings.json`, `hooks/`, `commands/` into `home/.claude/`.
+- `~/.agents` -> `home/.agents` wholesale: the `skills` CLI's canonical store, so `npx skills add -g` writes into the repo. Lock file is tracked.
+- Per-skill symlinks into `~/.claude/skills/` and `~/.codex/skills/`.
+- `~/.config/mise/config.toml` tracked: same node/bun/gh/uv/codex versions everywhere.
+- Hooks must keep runtime state under `~/.claude/state/`, never beside their source.
+
+### Shell layer (GNU Stow, Linux)
+- `home/` mirrors `~/`; `stow home` links `.zshrc`, `.tmux.conf`, `.gitconfig`, `.ssh/config`, `.local/bin`
+- `home/.stow-local-ignore` keeps stow away from the agent layer
 
 ### Secrets Pattern
-- Tracked configs in `home/` contain no secrets
-- Generated configs (e.g. `~/.claude/settings.json`, `~/.config/opencode/opencode.json`) are gitignored — seeded from `*.template` on first run, then user-extended with machine-specific MCPs/keys
+- Tracked configs contain no secrets; `apply` refuses to run if a bearer token is found in the repo
+- MCP servers needing keys are registered per machine with `claude mcp add -s user` (lands in `~/.claude.json`)
 - Long-lived secrets go in `~/.zshrc.local` (not in git, sourced by `.zshrc`)
 
 ## Adding a New Step
@@ -49,4 +57,7 @@ scripts/analyze.sh           # Security analysis of the VPS
 | `scripts/upgrade.sh` | Tool upgrades |
 | `home/.zshrc` | Shell config with aliases (`cc`, `ta`, `tw`, etc.) |
 | `home/.tmux.conf` | tmux config (Ctrl-w prefix) |
-| `home/.claude/` | Claude Code global instructions and settings |
+| `apply` / `bootstrap` | Agent-layer linking; new-machine entry point |
+| `home/.claude/` | Claude Code global instructions, settings, hooks |
+| `home/.agents/skills/` | Global skills (own + upstream via `skills` CLI) |
+| `home/.config/mise/config.toml` | Tool versions |

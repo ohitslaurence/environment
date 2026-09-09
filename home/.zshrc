@@ -75,6 +75,11 @@ export XDG_STATE_HOME="$HOME/.local/state"
 # Development directories
 export DEV_HOME="$HOME/dev"
 
+# Pull the environment repo and re-link the agent layer (Claude/Codex/skills/mise).
+envup() {
+    git -C "$DEV_HOME/environment" pull --ff-only && "$DEV_HOME/environment/apply"
+}
+
 # PATH additions
 typeset -U path
 path=(
@@ -88,8 +93,11 @@ path=(
 # Tool Initialization
 # ══════════════════════════════════════════════════════════════════════════════
 
-# fnm (Fast Node Manager)
-if [[ -d "$HOME/.local/share/fnm" ]]; then
+# mise (node, bun, gh, uv, codex, ... — versions in ~/.config/mise/config.toml)
+# Falls back to fnm only on machines that haven't run ./bootstrap yet.
+if command -v mise &> /dev/null; then
+    eval "$(mise activate zsh)"
+elif [[ -d "$HOME/.local/share/fnm" ]]; then
     export FNM_PATH="$HOME/.local/share/fnm"
     path=($FNM_PATH $path)
     eval "$(fnm env --use-on-cd)"
@@ -105,11 +113,6 @@ fi
 if [[ -d "$HOME/.local/share/pnpm" ]]; then
     export PNPM_HOME="$HOME/.local/share/pnpm"
     path=($PNPM_HOME $path)
-fi
-
-# mise (runtime manager)
-if command -v mise &> /dev/null; then
-    eval "$(mise activate zsh)"
 fi
 
 # atuin (better history)

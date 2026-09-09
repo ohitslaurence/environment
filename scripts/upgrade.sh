@@ -42,18 +42,16 @@ else
     results+=("${YELLOW}○${NC} OpenCode (not installed)")
 fi
 
-# Bun
-if command -v bun &> /dev/null; then
-    upgrade_tool "Bun" "bun upgrade"
+# mise-managed tools: node, bun, gh, uv, jq, codex, claude-powerline, skills CLI
+if command -v mise &> /dev/null; then
+    upgrade_tool "mise tools" "mise upgrade --yes"
 else
-    results+=("${YELLOW}○${NC} Bun (not installed)")
+    results+=("${YELLOW}○${NC} mise (not installed — run ./bootstrap)")
 fi
 
-# Codex (OpenAI CLI, installed via bun global)
-if command -v codex &> /dev/null; then
-    upgrade_tool "Codex" "bun update -g @openai/codex"
-else
-    results+=("${YELLOW}○${NC} Codex (not installed)")
+# Global agent skills (lock file in home/.agents/.skill-lock.json — commit after)
+if command -v skills &> /dev/null || command -v npx &> /dev/null; then
+    upgrade_tool "Agent skills" "cd ~/.agents && npx -y skills update -g -y"
 fi
 
 # Nia CLI (installed via bun global)
@@ -65,7 +63,7 @@ fi
 
 # Gritty (AI-powered Git CLI)
 if command -v gritty &> /dev/null; then
-    upgrade_tool "Gritty" "cd ~/dev/personal/gritty && git pull && bun install && bun run build"
+    upgrade_tool "Gritty" "cd \${DEV_HOME:-~/dev}/personal/gritty && git pull && bun install && bun run build"
 else
     results+=("${YELLOW}○${NC} Gritty (not installed)")
 fi

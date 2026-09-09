@@ -2,16 +2,19 @@
 *.local
 !home/.local/
 
-# OS files
+# OS / editor
 .DS_Store
 Thumbs.db
-
-# Editor
 *.swp
 *.swo
 *~
 .idea/
 .vscode/
+
+# Runtime output that hooks/tools may write next to their source
+*.log
+*.tmp.*
+strix_runs
 
 # Belt-and-braces secret patterns (apply everywhere)
 **/.credentials*
@@ -27,46 +30,30 @@ Thumbs.db
 id_rsa*
 id_ed25519*
 
-# strix output
-strix_runs
-
-# Third-party installed skills (managed by skill-installer, not repo)
-home/.agents/.skill-lock.json
-home/.agents/skills/find-skills/
-home/.agents/skills/frontend-design/
-home/.agents/skills/react-doctor/
-
-# ─────────────────────────────────────────────────────────────────────
-# Dotfile dirs: allowlist what we track, ignore everything else.
-# These directories double as live runtime targets (via stow), so any
-# tool that writes state into ~/.dir/ lands here. Default to ignoring,
-# explicitly un-ignore tracked files.
-# ─────────────────────────────────────────────────────────────────────
-
-# home/.claude/ — Claude Code runtime (credentials, sessions, history, telemetry)
+# ~/.claude is a real runtime dir on every machine; only these entries are linked into
+# the repo. Anything else that appears under home/.claude is a mistake — see `apply`.
 home/.claude/*
-home/.claude/**
 !home/.claude/CLAUDE.md
+!home/.claude/settings.json
 !home/.claude/commands/
-!home/.claude/commands/**
 !home/.claude/hooks/
-!home/.claude/hooks/keyword-detector.py
-!home/.claude/hooks/todo-enforcer.config.json
-!home/.claude/hooks/todo-enforcer.sh
-!home/.claude/settings.json.template
-!home/.claude/skills
 
-# home/.config/ — XDG config dumping ground for many tools
+# ~/.agents is linked wholesale (skills CLI writes here). Its lock file IS tracked.
+home/.agents/skills/*/node_modules/
+
+# home/.config — only what we deliberately track
 home/.config/*
-home/.config/**
 !home/.config/opencode/
-!home/.config/opencode/opencode.json.template
+home/.config/opencode/*
+!home/.config/opencode/opencode.json
+!home/.config/mise/
+!home/.config/mise/config.toml
 
-# home/.ssh/ — only the config file, never keys or known_hosts
+# home/.ssh — only the config file, never keys or known_hosts
 home/.ssh/*
 !home/.ssh/config
 
-# home/.local/ — XDG data/state dumping ground; only ~/.local/bin is intentional
+# home/.local — only ~/.local/bin is intentional
 home/.local/*
 !home/.local/bin/
 !home/.local/bin/**
