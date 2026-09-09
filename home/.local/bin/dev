@@ -501,8 +501,8 @@ function cmdDone(rest) {
 }
 
 // A branch is finished when origin/<base> already contains it (merge or
-// rebase) or, with askGitHub, when its PR is merged or closed (squash merges
-// leave no ancestry, so git alone cannot tell).
+// rebase) or, with askGitHub, when its PR was merged (squash merges leave no
+// ancestry, so git alone cannot tell).
 function branchIsMerged(repo, branch, { askGitHub = false, prIndex } = {}) {
   if (!branch || branch === repo.base) {
     return false;
@@ -519,8 +519,8 @@ function branchIsMerged(repo, branch, { askGitHub = false, prIndex } = {}) {
     return false;
   }
   const index = prIndex || loadPrIndex(repo);
-  const state = index.get(branch);
-  return state === "MERGED" || state === "CLOSED";
+  // Only MERGED counts: a closed-but-unmerged PR may still hold unpushed work.
+  return index.get(branch) === "MERGED";
 }
 
 // One GitHub call per repo: head branch -> PR state for recent PRs.
