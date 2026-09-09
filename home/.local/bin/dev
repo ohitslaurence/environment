@@ -713,6 +713,16 @@ function prune(repos, { dryRun, askGitHub, verbose }) {
   return summary;
 }
 
+function listAgentCwds() {
+  try {
+    return herdrJson(["agent", "list"]).result.agents.flatMap((a) =>
+      [a.cwd, a.foreground_cwd].filter(Boolean),
+    );
+  } catch {
+    return [];
+  }
+}
+
 function listAgentWorkspaces() {
   try {
     return herdrJson(["agent", "list"]).result.agents.map((a) => a.workspace_id);
@@ -736,6 +746,11 @@ function findStaleWorktrees(repos, contexts) {
     contexts.map((ctx) => path.resolve(ctx.worktree.checkout_path)),
   );
   const liveLabels = new Set(contexts.map((ctx) => ctx.label));
+  // Any checkout a live agent is working in is live, even if no dev context
+  // tracks it (e.g. a workspace created by hand pointing at a worktree).
+  const agentCwds = listAgentCwds().map((cwd) => path.resolve(cwd));
+  const usedByAgent = (wtPath) =>
+    agentCwds.some((cwd) => cwd === wtPath || cwd.startsWith(`${wtPath}${path.sep}`));
 
   const stale = [];
   for (const repo of Object.values(repos)) {
@@ -754,7 +769,7 @@ function findStaleWorktrees(repos, contexts) {
       if (!wtPath.startsWith(`${repo.path}-wt-`)) {
         continue; // canonical checkout, or not created by dev
       }
-      if (trackedPaths.has(path.resolve(wtPath))) {
+      if (trackedPaths.has(path.resolve(wtPath)) || usedByAgent(path.resolve(wtPath))) {
         continue;
       }
       const branch = currentBranchName(wtPath);
