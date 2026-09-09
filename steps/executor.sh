@@ -33,12 +33,20 @@ if docker ps -a --format '{{.Names}}' | grep -qx executor; then
   docker rm -f executor >/dev/null
 fi
 docker pull -q ghcr.io/rhyssullivan/executor-selfhost:latest
+# Bootstrap admin only on first boot (empty data volume). After that the
+# credentials come from the database, so the env file stays out of the container.
+BOOTSTRAP=()
+if ! docker volume inspect executor-data >/dev/null 2>&1; then
+  BOOTSTRAP=(--env-file "$ENV_FILE")
+  echo "first boot: bootstrapping admin from $ENV_FILE (change the password in the UI afterwards)"
+fi
 docker run -d \
   --name executor \
   --restart unless-stopped \
   -p "${TS_IP}:4788:4788" \
   -v executor-data:/data \
-  --env-file "$ENV_FILE" \
+  "${BOOTSTRAP[@]}" \
+  -e "EXECUTOR_ORG_NAME=Spritz" -e "EXECUTOR_ORG_SLUG=spritz" \
   -e "EXECUTOR_WEB_BASE_URL=${BASE_URL}" \
   ghcr.io/rhyssullivan/executor-selfhost:latest >/dev/null
 
