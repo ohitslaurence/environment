@@ -27,5 +27,9 @@ cat <<'MSG'
 
 Per-machine (never synced):
   gh auth login && claude                      # log in
-  claude mcp add -s user ...                   # MCP servers that need keys (keys in ~/.zshrc.local)
+  # Executor (self-hosted on gondor): mint an API key at https://gondor.tail674d83.ts.net (Account -> API keys),
+  # save it to ~/.config/executor/api-key (chmod 600) and export EXECUTOR_API_KEY from ~/.zshrc.local. Then:
+  claude mcp add -s user --transport http executor https://gondor.tail674d83.ts.net/mcp --header "Authorization: Bearer $EXECUTOR_API_KEY"
+  codex mcp add executor --url https://gondor.tail674d83.ts.net/mcp --bearer-token-env-var EXECUTOR_API_KEY
+  # OpenCode reads EXECUTOR_API_KEY via {env:...} in the tracked opencode.json; nothing to do.
 MSG

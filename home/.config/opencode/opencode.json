@@ -2,5 +2,15 @@
   "instructions": [
     "~/.claude/CLAUDE.md"
   ],
-  "$schema": "https://opencode.ai/config.json"
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "executor": {
+      "type": "remote",
+      "url": "https://gondor.tail674d83.ts.net/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:EXECUTOR_API_KEY}"
+      },
+      "enabled": true
+    }
+  }
 }
