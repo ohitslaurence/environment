@@ -270,7 +270,7 @@ mkcd() {
 dev() {
     if [[ $# -gt 0 ]]; then
         case "$1" in
-            pick|ls|branch|cross|done|refresh|bootstrap|sync|save|pr|help|-h|--help|--knows)
+            pick|ls|repos|branch|cross|done|refresh|prune|bootstrap|sync|save|pr|pr-checkout|prco|help|-h|--help|--knows)
                 command dev "$@"; return ;;
         esac
         if command dev --knows "$1" 2>/dev/null; then
