@@ -2,7 +2,9 @@
 # orch — run worker agents (codex/claude) in herdr panes on dev worktrees and
 # supervise them through an append-only status log.
 #
-#   orch start  <name> --repo <alias> --brief <file> [--kind codex|claude] [--model M] [--effort low|medium|high|xhigh]
+#   orch start  <name> --repo <alias> --brief <file> [--kind codex|claude] [--model M] [--effort low|medium|high|xhigh] [--workspace]
+#               default: the worker runs in a NEW TAB of the calling herdr workspace ($HERDR_WORKSPACE_ID);
+#               --workspace (or no HERDR_WORKSPACE_ID) gives it its own dev workspace instead
 #   orch prompt <name> "<text>"        steer a running worker (no wait)
 #   orch status                         one line per worker
 #   orch wait   [name...] [--timeout S] block until each worker reaches a terminal status
@@ -35,14 +37,17 @@ agent_status() { herdr agent get "$1" 2>/dev/null | json 'd["result"]["agent"]["
 
 cmd_start() {
   local name="$1"; shift
-  local repo="" brief="" kind="codex" model="" effort="xhigh"
+  local repo="" brief="" kind="codex" model="" effort="xhigh" placement="tab"
+  [[ -n "${HERDR_WORKSPACE_ID:-}" ]] || placement="workspace"
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --repo) repo="$2"; shift 2;; --brief) brief="$2"; shift 2;;
       --kind) kind="$2"; shift 2;; --model) model="$2"; shift 2;; --effort) effort="$2"; shift 2;;
+      --workspace) placement="workspace"; shift;; --tab) placement="tab"; shift;;
       *) die "unknown flag $1";;
     esac
   done
+  [[ "$placement" == tab && -z "${HERDR_WORKSPACE_ID:-}" ]] && die "--tab needs HERDR_WORKSPACE_ID (run inside a herdr pane)"
   [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || die "name must match [a-z][a-z0-9_-]{0,31}"
   [[ -n "$repo" && -n "$brief" ]] || die "usage: orch start <name> --repo <alias> --brief <file>"
   [[ -f "$brief" ]] || die "brief not found: $brief"
@@ -52,12 +57,13 @@ cmd_start() {
   local dir="$ORCH_HOME/$name"; mkdir -p "$dir"
   : > "$dir/status"
 
-  # 1. worktree + workspace via dev (label = name), without stealing focus
-  DEV_NO_FOCUS=1 command dev "$repo" "$name" >/dev/null
-  local ws pane worktree
-  ws=$(herdr workspace list | json "next(w['workspace_id'] for w in d['result']['workspaces'] if w['label']=='$name')")
-  worktree=$(herdr workspace list | json "next(w['worktree']['checkout_path'] for w in d['result']['workspaces'] if w['label']=='$name')")
-  pane=$(python3 - "$ws" <<'PY'
+  local ws pane worktree tab=""
+  if [[ "$placement" == workspace ]]; then
+    # 1a. worktree + its own workspace via dev (label = name), without stealing focus
+    DEV_NO_FOCUS=1 command dev "$repo" "$name" >/dev/null
+    ws=$(herdr workspace list | json "next(w['workspace_id'] for w in d['result']['workspaces'] if w['label']=='$name')")
+    worktree=$(herdr workspace list | json "next(w['worktree']['checkout_path'] for w in d['result']['workspaces'] if w['label']=='$name')")
+    pane=$(python3 - "$ws" <<'PY'
 import json,subprocess,sys
 ws=sys.argv[1]
 tabs={t["tab_id"]:t["label"] for t in json.loads(subprocess.run(["herdr","tab","list","--workspace",ws],capture_output=True,text=True).stdout)["result"]["tabs"]}
@@ -66,6 +72,29 @@ agent=[p for p in panes if tabs.get(p["tab_id"])=="agent"] or panes
 print(agent[0]["pane_id"])
 PY
 )
+
+  else
+    # 1b. worktree with dev's conventions, pane as a new tab in the caller's workspace
+    ws="$HERDR_WORKSPACE_ID"
+    local repo_path base
+    repo_path=$(command dev repos --json | json "next(r['path'] for r in d['repos'] if r['alias']=='$repo')")
+    base=$(command dev repos --json | json "next(r['defaultBranch'] for r in d['repos'] if r['alias']=='$repo')")
+    worktree="${repo_path}-wt-${name}"
+    local branch="${repo}__${name}"
+    if [[ ! -d "$worktree" ]]; then
+      git -C "$repo_path" fetch -q origin "$base"
+      if git -C "$repo_path" show-ref --verify --quiet "refs/heads/$branch"; then
+        git -C "$repo_path" worktree add -q "$worktree" "$branch"
+      else
+        git -C "$repo_path" worktree add -q -b "$branch" "$worktree" "origin/$base"
+      fi
+      (cd "$worktree" && command dev bootstrap >/dev/null 2>&1 || true)
+    fi
+    local created
+    created=$(herdr tab create --workspace "$ws" --cwd "$worktree" --label "$name" --no-focus)
+    tab=$(echo "$created" | json "d['result']['tab']['tab_id']")
+    pane=$(echo "$created" | json "d['result']['root_pane']['pane_id']")
+  fi
 
   # 2. render the brief
   sed -e "s|{{NAME}}|$name|g" -e "s|{{STATUS}}|$dir/status|g" -e "s|{{REPORT}}|$dir/report.md|g" \
@@ -104,8 +133,8 @@ PY
   if ! herdr agent read "$name" --source visible 2>/dev/null | grep -q "Working\|working:\|esc to interrupt"; then
     echo "orch: warning: no working signal after brief; verify with: orch log $name" >&2
   fi
-  printf 'name=%s\nkind=%s\nrepo=%s\nworkspace=%s\npane=%s\nworktree=%s\nstarted=%s\n' \
-    "$name" "$kind" "$repo" "$ws" "$pane" "$worktree" "$(date -u +%FT%TZ)" > "$dir/meta"
+  printf 'name=%s\nkind=%s\nrepo=%s\nplacement=%s\nworkspace=%s\ntab=%s\npane=%s\nworktree=%s\nstarted=%s\n' \
+    "$name" "$kind" "$repo" "$placement" "$ws" "$tab" "$pane" "$worktree" "$(date -u +%FT%TZ)" > "$dir/meta"
   echo "started $name ($kind) in $ws $pane -> $worktree"
 }
 
@@ -158,7 +187,29 @@ cmd_done() {
   herdr pane send-text "$(sed -n 's/^pane=//p' "$ORCH_HOME/$name/meta")" "$quit" >/dev/null 2>&1 || true
   sleep 1; herdr pane send-keys "$(sed -n 's/^pane=//p' "$ORCH_HOME/$name/meta")" enter >/dev/null 2>&1 || true
   sleep 2
-  command dev done "$name" "$@" || true
+  local meta="$ORCH_HOME/$name/meta"
+  if [[ "$(sed -n 's/^placement=//p' "$meta")" == tab ]]; then
+    # Tab mode: close the tab, then remove the worktree ourselves (dev has no context for it).
+    local tab wt repo_alias repo_path branch base
+    tab=$(sed -n 's/^tab=//p' "$meta"); wt=$(sed -n 's/^worktree=//p' "$meta"); repo_alias=$(sed -n 's/^repo=//p' "$meta")
+    repo_path=$(command dev repos --json | json "next(r['path'] for r in d['repos'] if r['alias']=='$repo_alias')")
+    base=$(command dev repos --json | json "next(r['defaultBranch'] for r in d['repos'] if r['alias']=='$repo_alias')")
+    branch=$(git -C "$wt" branch --show-current 2>/dev/null || true)
+    [[ -n "$tab" ]] && herdr tab close "$tab" >/dev/null 2>&1 || true
+    sleep 1
+    if [[ "${1:-}" != "--force" && -n "$(git -C "$wt" status --porcelain 2>/dev/null)" ]]; then
+      echo "orch: $wt has uncommitted changes; left in place (orch done $name --force to discard)" >&2
+    else
+      git -C "$repo_path" worktree remove ${1:+--force} "$wt" 2>/dev/null || git -C "$repo_path" worktree remove --force "$wt" || true
+      if [[ -n "$branch" ]] && [[ -z "$(git -C "$repo_path" rev-list "origin/$base..$branch" 2>/dev/null)" ]]; then
+        git -C "$repo_path" branch -D "$branch" >/dev/null 2>&1 || true   # no commits beyond base: nothing to keep
+      elif [[ -n "$branch" ]]; then
+        echo "orch: branch $branch has commits; kept" >&2
+      fi
+    fi
+  else
+    command dev done "$name" "$@" || true
+  fi
   mkdir -p "$ORCH_HOME/.archive"; mv "$ORCH_HOME/$name" "$ORCH_HOME/.archive/$name-$(date +%Y%m%d%H%M%S)"
   echo "archived $name"
 }

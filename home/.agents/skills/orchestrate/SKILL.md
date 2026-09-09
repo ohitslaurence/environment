@@ -20,7 +20,7 @@ Mechanics live in `orch` (see `orch` with no args). Herdr internals are in the
    self-sufficient: paste the material the worker needs (a report body, an
    error, a spec) into the brief. Never link to something only you can see.
 2. **Start.** `orch start <name> --repo <alias> --brief <file> [--kind codex|claude] [--effort xhigh]`.
-   One worker per independent item. Names: `[a-z][a-z0-9_-]*`, unique.
+   One worker per independent item. Names: `[a-z][a-z0-9_-]*`, unique. Inside herdr, each worker becomes a tab of your workspace; add `--workspace` for separate workspaces.
 3. **Wait.** `orch wait --timeout 1800` (all) or `orch wait <name>`. It
    prints each new status line. Between waits do nothing else; the workers
    are the work.

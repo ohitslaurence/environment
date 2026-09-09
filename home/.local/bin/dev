@@ -878,7 +878,9 @@ function cmdSync() {
 
 function cmdBootstrap() {
   requireInsideGitRepo("dev bootstrap");
-  bootstrapWorktree(gitTopLevel());
+  let alias = "";
+  try { alias = inferCurrentRepoAlias(); } catch { /* seeding is optional */ }
+  bootstrapWorktree(gitTopLevel(), alias);
 }
 
 function cmdLs() {
