@@ -11,6 +11,7 @@
 #   orch report <name>                  print the worker's report.md
 #   orch log    <name> [lines]          recent pane output
 #   orch done   <name> [--force]        tear down (dev done) and archive state
+#   orch retro  [name|--last N]         timeline, tool-call stats from the worker transcript, report
 #
 # Worker contract (rendered into the brief from the template placeholders):
 #   append "<state>: <one line>" to $STATUS   state ∈ working|needs-decision|blocked|paused|done|failed
@@ -135,6 +136,7 @@ PY
   fi
   printf 'name=%s\nkind=%s\nrepo=%s\nplacement=%s\nworkspace=%s\ntab=%s\npane=%s\nworktree=%s\nstarted=%s\n' \
     "$name" "$kind" "$repo" "$placement" "$ws" "$tab" "$pane" "$worktree" "$(date -u +%FT%TZ)" > "$dir/meta"
+  echo "$(date -u +%FT%TZ) started kind=$kind effort=$effort placement=$placement" >> "$dir/events.log"
   echo "started $name ($kind) in $ws $pane -> $worktree"
 }
 
@@ -163,7 +165,10 @@ cmd_wait() {
     for n in "${names[@]}"; do
       local st; st=$(state_of "$n")
       local ls; ls=$(last_status "$n")
-      if [[ -n "$ls" && "${seen[$n]:-}" != "$ls" ]]; then echo "[$n] $ls"; seen[$n]="$ls"; fi
+      if [[ -n "$ls" && "${seen[$n]:-}" != "$ls" ]]; then
+        echo "[$n] $ls"; seen[$n]="$ls"
+        echo "$(date -u +%FT%TZ) $ls" >> "$ORCH_HOME/$n/events.log"
+      fi
       is_terminal "${st:-working}" || pending=$((pending+1))
     done
     [[ $pending -eq 0 ]] && { echo "all terminal"; return 0; }
@@ -214,6 +219,49 @@ cmd_done() {
   echo "archived $name"
 }
 
+cmd_retro() {
+  local -a dirs=()
+  if [[ "${1:-}" == --last ]]; then
+    mapfile -t dirs < <(ls -1dt "$ORCH_HOME"/.archive/*/ 2>/dev/null | head -n "${2:-1}")
+  elif [[ -n "${1:-}" ]]; then
+    dirs=("$ORCH_HOME/$1"); [[ -d "${dirs[0]}" ]] || dirs=("$(ls -1dt "$ORCH_HOME"/.archive/"$1"-*/ 2>/dev/null | head -1)")
+  else
+    mapfile -t dirs < <(ls -1dt "$ORCH_HOME"/.archive/*/ 2>/dev/null | head -4)
+  fi
+  for d in "${dirs[@]}"; do
+    [[ -d "$d" ]] || continue
+    echo "=================== $(basename "$d")"
+    echo "--- timeline"; cat "$d/events.log" 2>/dev/null || echo "(no events.log)"
+    echo "--- status log ($(wc -l < "$d/status" 2>/dev/null || echo 0) lines)"; cat "$d/status" 2>/dev/null
+    local wt; wt=$(sed -n 's/^worktree=//p' "$d/meta" 2>/dev/null)
+    local kind; kind=$(sed -n 's/^kind=//p' "$d/meta" 2>/dev/null)
+    if [[ "$kind" == codex && -n "$wt" ]]; then
+      local roll; roll=$(grep -l "\"cwd\":\"$wt\"" $(ls -t ~/.codex/sessions/*/*/*/rollout-*.jsonl 2>/dev/null | head -60) 2>/dev/null | head -1)
+      if [[ -n "$roll" ]]; then
+        echo "--- codex transcript: $roll"
+        python3 - "$roll" <<'PYX'
+import json,sys,collections
+calls=collections.Counter(); errs=0; turns=0; first=last=None
+for line in open(sys.argv[1]):
+    try: e=json.loads(line)
+    except Exception: continue
+    ts=e.get("timestamp") or e.get("ts"); first=first or ts; last=ts or last
+    p=e.get("payload") or e
+    t=p.get("type") or e.get("type") or ""
+    if t in ("function_call","tool_call","custom_tool_call","local_shell_call"): calls[p.get("name") or t]+=1
+    if t=="mcp_tool_call": calls["mcp:"+str(p.get("invocation",{}).get("tool") or p.get("name"))]+=1
+    if "error" in json.dumps(p)[:200].lower() and t.endswith("output"): errs+=1
+    if t in ("turn_context","task_started"): turns+=1
+print(f"turns={turns} tool_calls={sum(calls.values())} errors~{errs} span={first} -> {last}")
+for k,v in calls.most_common(12): print(f"  {v:4d}  {k}")
+PYX
+      fi
+    fi
+    echo "--- report"; head -60 "$d/report.md" 2>/dev/null || echo "(no report)"
+    echo
+  done
+}
+
 case "${1:-}" in
   start) shift; cmd_start "$@";;
   prompt) shift; cmd_prompt "$@";;
@@ -222,5 +270,6 @@ case "${1:-}" in
   report) shift; cmd_report "$@";;
   log) shift; cmd_log "$@";;
   done) shift; cmd_done "$@";;
+  retro) shift; cmd_retro "$@";;
   *) sed -n '2,20p' "$0";;
 esac
