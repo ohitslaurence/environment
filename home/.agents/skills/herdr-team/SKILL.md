@@ -34,3 +34,4 @@ Fan-out: one split + start per worker, prompt each without `--wait`, then `herdr
 - Never run bare `herdr server`: it starts a headless server and blocks. Get help with `herdr <group>` (no subcommand) or `herdr --help`.
 - Don't control the live session from outside a pane (over ssh, from a script). For experiments use an isolated session: `herdr --session test server &`, then `herdr --session test ...`, then `herdr session stop test && herdr session delete test`.
 - Don't close panes or workspaces you didn't create.
+- **Closing a canonical repo workspace closes every worktree workspace linked to it**, killing the agents inside, even without `--group`. Before `workspace close`, check `herdr worktree list --workspace <id>` for children. Never close a primary while any of its worktree workspaces has an agent. (2026-09-09: this took out five live agents.)
