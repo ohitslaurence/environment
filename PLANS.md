@@ -87,8 +87,8 @@ One command on every machine after pulling: `./apply` = stow --no-folding + link
 
 ### 0. Safety
 - [x] gondor: `git push origin main` (4 commits ahead).
-- [x] gondor: `cp -a ~/dev/environment ~/dev/environment.bak-$(date +%F)` (900 MB; sessions matter).
-- [x] Mac: `mv ~/dev ~/dev.dead-syncthing` (delete later), `ln -s ~/Development ~/dev`.
+- [ ] ~~gondor backup copy~~ skipped: unfold is a same-filesystem rename, verified after.
+- [ ] Mac: `mv ~/dev ~/dev.dead-syncthing` (delete later), `ln -s ~/Development ~/dev`. BLOCKED on Syncthing (see status).
 
 ### 1. Un-fold `~/.claude` and `~/.agents` on gondor
 - [x] `rm ~/.claude` (the symlink), `mkdir ~/.claude`.
@@ -118,7 +118,7 @@ One command on every machine after pulling: `./apply` = stow --no-folding + link
 - [x] `rm -rf` the vendored upstream copies (`git rm`), keep own skills.
 - [x] `npx skills add mattpocock/skills -g -a claude-code,codex -s <list> -y` from a shell where
       `~/.agents/skills` already points into the repo. Commit files + lock.
-- [x] Find sources for `caveman`, `write-a-skill`, `zoom-out`; re-add via `skills` or move to own.
+- [ ] Find sources for `caveman`, `write-a-skill`, `zoom-out`; for now they are treated as own skills (no lock entry).
 - [x] Resolve `improve`: repo copy vs Mac's `shadcn/improve`. Keep one.
 - [x] Upgrade flow from now on: `npx skills update -g -y && gritty commit --accept && git push`;
       other machine: `env up`.
