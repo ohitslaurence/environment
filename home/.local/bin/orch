@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# orch — run worker agents (codex/claude) in herdr panes on dev worktrees and
+# supervise them through an append-only status log.
+#
+#   orch start  <name> --repo <alias> --brief <file> [--kind codex|claude] [--model M] [--effort low|medium|high|xhigh]
+#   orch prompt <name> "<text>"        steer a running worker (no wait)
+#   orch status                         one line per worker
+#   orch wait   [name...] [--timeout S] block until each worker reaches a terminal status
+#   orch report <name>                  print the worker's report.md
+#   orch log    <name> [lines]          recent pane output
+#   orch done   <name> [--force]        tear down (dev done) and archive state
+#
+# Worker contract (rendered into the brief from the template placeholders):
+#   append "<state>: <one line>" to $STATUS   state ∈ working|needs-decision|blocked|paused|done|failed
+#   write the standalone report to $REPORT
+# Terminal states: done failed blocked needs-decision. A herdr "idle" is NEVER
+# treated as finished; only the status log is.
+set -euo pipefail
+
+ORCH_HOME="${ORCH_HOME:-$HOME/.local/state/orch}"
+mkdir -p "$ORCH_HOME"
+
+die() { echo "orch: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
+json() { python3 -c "import json,sys;d=json.load(sys.stdin);print(eval(sys.argv[1]))" "$1"; }
+
+last_status() { # <name> -> "state: line" or ""
+  local f="$ORCH_HOME/$1/status"
+  [[ -f "$f" ]] && tail -n1 "$f" || true
+}
+state_of() { last_status "$1" | sed -E 's/^([a-z-]+).*/\1/'; }
+is_terminal() { case "$1" in done|failed|blocked|needs-decision) return 0;; *) return 1;; esac; }
+
+agent_status() { herdr agent get "$1" 2>/dev/null | json 'd["result"]["agent"]["agent_status"]' 2>/dev/null || echo "-"; }
+
+cmd_start() {
+  local name="$1"; shift
+  local repo="" brief="" kind="codex" model="" effort="xhigh"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo) repo="$2"; shift 2;; --brief) brief="$2"; shift 2;;
+      --kind) kind="$2"; shift 2;; --model) model="$2"; shift 2;; --effort) effort="$2"; shift 2;;
+      *) die "unknown flag $1";;
+    esac
+  done
+  [[ "$name" =~ ^[a-z][a-z0-9_-]{0,31}$ ]] || die "name must match [a-z][a-z0-9_-]{0,31}"
+  [[ -n "$repo" && -n "$brief" ]] || die "usage: orch start <name> --repo <alias> --brief <file>"
+  [[ -f "$brief" ]] || die "brief not found: $brief"
+  need herdr; need dev; need python3
+  [[ -d "$ORCH_HOME/$name" ]] && die "worker '$name' already exists (orch done $name first)"
+
+  local dir="$ORCH_HOME/$name"; mkdir -p "$dir"
+  : > "$dir/status"
+
+  # 1. worktree + workspace via dev (label = name), without stealing focus
+  DEV_NO_FOCUS=1 command dev "$repo" "$name" >/dev/null
+  local ws pane worktree
+  ws=$(herdr workspace list | json "next(w['workspace_id'] for w in d['result']['workspaces'] if w['label']=='$name')")
+  worktree=$(herdr workspace list | json "next(w['worktree']['checkout_path'] for w in d['result']['workspaces'] if w['label']=='$name')")
+  pane=$(python3 - "$ws" <<'PY'
+import json,subprocess,sys
+ws=sys.argv[1]
+tabs={t["tab_id"]:t["label"] for t in json.loads(subprocess.run(["herdr","tab","list","--workspace",ws],capture_output=True,text=True).stdout)["result"]["tabs"]}
+panes=json.loads(subprocess.run(["herdr","pane","list","--workspace",ws],capture_output=True,text=True).stdout)["result"]["panes"]
+agent=[p for p in panes if tabs.get(p["tab_id"])=="agent"] or panes
+print(agent[0]["pane_id"])
+PY
+)
+
+  # 2. render the brief
+  sed -e "s|{{NAME}}|$name|g" -e "s|{{STATUS}}|$dir/status|g" -e "s|{{REPORT}}|$dir/report.md|g" \
+      -e "s|{{WORKTREE}}|$worktree|g" "$brief" > "$dir/brief.md"
+
+  # 3. start the agent in the pane
+  local -a args
+  case "$kind" in
+    codex)
+      args=(--dangerously-bypass-approvals-and-sandbox -c "model_reasoning_effort=\"$effort\"" \
+            -c "notify=[\"bash\",\"-c\",\"touch $dir/turn-ended\"]")
+      [[ -n "$model" ]] && args+=(--model "$model") ;;
+    claude)
+      args=(--dangerously-skip-permissions)
+      [[ -n "$model" ]] && args+=(--model "$model") ;;
+    *) die "kind must be codex or claude";;
+  esac
+  herdr agent start "$name" --kind "$kind" --pane "$pane" --timeout 90000 -- "${args[@]}" >/dev/null \
+    || echo "orch: agent start reported not-ready; continuing" >&2
+
+  # Codex first launch after a hook change: trust prompt that herdr reads as idle.
+  if [[ "$kind" == codex ]] && herdr agent read "$name" --source visible 2>/dev/null | grep -q "Hooks need review"; then
+    herdr agent send-keys "$name" down enter >/dev/null; sleep 3
+  fi
+  herdr agent wait "$name" --until idle --timeout 60000 >/dev/null 2>&1 || true
+
+  # 4. deliver the brief as the first prompt (no wait: supervision is via status log)
+  herdr agent prompt "$name" "$(cat "$dir/brief.md")" >/dev/null
+  printf 'name=%s\nkind=%s\nrepo=%s\nworkspace=%s\npane=%s\nworktree=%s\nstarted=%s\n' \
+    "$name" "$kind" "$repo" "$ws" "$pane" "$worktree" "$(date -u +%FT%TZ)" > "$dir/meta"
+  echo "started $name ($kind) in $ws $pane -> $worktree"
+}
+
+cmd_prompt() { herdr agent prompt "$1" "$2" >/dev/null && echo "sent to $1"; }
+
+cmd_status() {
+  printf '%-22s %-8s %-9s %-16s %-6s %s\n' NAME KIND HERDR STATE TURN REPORT
+  for d in "$ORCH_HOME"/*/; do
+    [[ -f "$d/meta" ]] || continue
+    local n; n=$(basename "$d")
+    local kind; kind=$(sed -n 's/^kind=//p' "$d/meta")
+    local turn="-"; [[ -f "$d/turn-ended" ]] && turn="$(( ($(date +%s) - $(stat -c %Y "$d/turn-ended" 2>/dev/null || stat -f %m "$d/turn-ended")) / 60 ))m"
+    local rep="-"; [[ -s "$d/report.md" ]] && rep="yes"
+    printf '%-22s %-8s %-9s %-16s %-6s %s\n' "$n" "$kind" "$(agent_status "$n")" "$(state_of "$n"):-" "$turn" "$rep"
+    local ls; ls=$(last_status "$n"); [[ -n "$ls" ]] && echo "    $ls"
+  done
+}
+
+cmd_wait() {
+  local timeout=0; local -a names=()
+  while [[ $# -gt 0 ]]; do case "$1" in --timeout) timeout="$2"; shift 2;; *) names+=("$1"); shift;; esac; done
+  if [[ ${#names[@]} -eq 0 ]]; then for d in "$ORCH_HOME"/*/; do [[ -f "$d/meta" ]] && names+=("$(basename "$d")"); done; fi
+  local start; start=$(date +%s); declare -A seen=()
+  while :; do
+    local pending=0
+    for n in "${names[@]}"; do
+      local st; st=$(state_of "$n")
+      local ls; ls=$(last_status "$n")
+      if [[ -n "$ls" && "${seen[$n]:-}" != "$ls" ]]; then echo "[$n] $ls"; seen[$n]="$ls"; fi
+      is_terminal "${st:-working}" || pending=$((pending+1))
+    done
+    [[ $pending -eq 0 ]] && { echo "all terminal"; return 0; }
+    if [[ $timeout -gt 0 && $(( $(date +%s) - start )) -ge $timeout ]]; then echo "timeout; $pending still running"; return 1; fi
+    sleep 15
+  done
+}
+
+cmd_report() { cat "$ORCH_HOME/$1/report.md" 2>/dev/null || die "no report for $1"; }
+cmd_log() { herdr agent read "$1" --source recent-unwrapped --lines "${2:-80}"; }
+
+cmd_done() {
+  local name="$1"; shift || true
+  [[ -d "$ORCH_HOME/$name" ]] || die "unknown worker $name"
+  local st; st=$(state_of "$name")
+  if ! is_terminal "${st:-working}" && [[ "${1:-}" != "--force" ]]; then die "$name is not terminal (state: ${st:-working}); pass --force to stop it anyway"; fi
+  herdr agent send-keys "$name" ctrl+c >/dev/null 2>&1 || true
+  command dev done "$name" "$@" || true
+  mkdir -p "$ORCH_HOME/.archive"; mv "$ORCH_HOME/$name" "$ORCH_HOME/.archive/$name-$(date +%Y%m%d%H%M%S)"
+  echo "archived $name"
+}
+
+case "${1:-}" in
+  start) shift; cmd_start "$@";;
+  prompt) shift; cmd_prompt "$@";;
+  status) cmd_status;;
+  wait) shift; cmd_wait "$@";;
+  report) shift; cmd_report "$@";;
+  log) shift; cmd_log "$@";;
+  done) shift; cmd_done "$@";;
+  *) sed -n '2,20p' "$0";;
+esac

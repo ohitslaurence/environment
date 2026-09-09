@@ -109,6 +109,10 @@ Usage:
   dev done [label] [--force] [--keep-branch]
 
 Config:
+  Seed files: ~/.config/dev/seed/<alias>/ mirrors the repo; its files are copied
+  into every new worktree (for .env and other gitignored local config).
+  DEV_NO_FOCUS=1 creates contexts without focusing them (orchestration).
+
   Repos are discovered by scanning $DEV_REPOS_DIR (default: the parent
   folder of the first repos.tsv entry) for git checkouts; alias = folder
   name. ${DEV_REPOS_FILE} is optional and overrides scanned entries:
@@ -301,7 +305,7 @@ function cmdCross(rest) {
   }
 
   for (const repo of selectedRepos) {
-    bootstrapWorktree(worktreePathFor(repo));
+    bootstrapWorktree(worktreePathFor(repo), repo.alias);
   }
 
   ensureTabs(
@@ -377,7 +381,7 @@ function cmdPrCheckout(rest) {
     "worktree", "open", "--cwd", repo.path, "--path", worktreePath, "--label", label, "--no-focus", "--json",
   ]);
   const workspaceId = opened.result.workspace.workspace_id;
-  bootstrapWorktree(worktreePath);
+  bootstrapWorktree(worktreePath, alias);
   ensureTabs(workspaceId, worktreePath, [], `${alias}${LABEL_SEP}${label}`);
   focusWorkspace(workspaceId);
   console.log(worktreePath);
@@ -454,6 +458,9 @@ function cmdDone(rest) {
         fail(
           `Uncommitted changes in ${checkout} — commit/push them, or 'dev done --force' to discard.`,
         );
+      }
+      if (!samePath(checkout, process.cwd()) && inUseByProcess(checkout)) {
+        fail(`A process is still running in ${checkout} — stop it, or 'dev done --force'.`);
       }
     }
   }
@@ -640,8 +647,8 @@ function prune(repos, { dryRun, askGitHub, verbose }) {
     if (!branchIsMerged(repo, branch, { askGitHub, prIndex: prIndexFor(repo) })) {
       continue;
     }
-    if (isDirty(checkout)) {
-      log(`prune: skipping ${checkout} (merged but has uncommitted changes)`);
+    if (isDirty(checkout) || inUseByProcess(checkout)) {
+      log(`prune: skipping ${checkout} (merged but dirty or in use)`);
       summary.skipped += 1;
       continue;
     }
@@ -663,6 +670,11 @@ function prune(repos, { dryRun, askGitHub, verbose }) {
   for (const { repo, path: wtPath, dirty } of stale) {
     if (dirty) {
       log(`prune: skipping ${wtPath} (uncommitted changes)`);
+      summary.skipped += 1;
+      continue;
+    }
+    if (inUseByProcess(wtPath)) {
+      log(`prune: skipping ${wtPath} (a process is running in it)`);
       summary.skipped += 1;
       continue;
     }
@@ -729,6 +741,23 @@ function listAgentWorkspaces() {
   } catch {
     return [];
   }
+}
+
+// Worktree is in use if any running process has its cwd inside it (dev servers,
+// shells, agents herdr doesn't know about). Linux via /proc, macOS via lsof.
+function inUseByProcess(checkout) {
+  const root = path.resolve(checkout);
+  if (process.platform === "linux") {
+    for (const pid of fs.readdirSync("/proc").filter((n) => /^\d+$/.test(n))) {
+      if (Number(pid) === process.pid) continue;
+      let cwd;
+      try { cwd = fs.readlinkSync(`/proc/${pid}/cwd`); } catch { continue; }
+      if (cwd === root || cwd.startsWith(`${root}${path.sep}`)) return true;
+    }
+    return false;
+  }
+  const out = runCapture("lsof", ["-a", "-d", "cwd", "-Fn", "+D", root], { check: false }).stdout;
+  return out.split("\n").some((l) => l.startsWith("n") && l.length > 1);
 }
 
 function isDirty(checkout) {
@@ -865,8 +894,32 @@ const LOCKFILE_COMMANDS = [
   { file: "package-lock.json", cmd: ["npm", "ci"] },
 ];
 
-function bootstrapWorktree(worktreePath) {
+// Copy machine-local, gitignored files (.env, local config) into a fresh
+// worktree from ~/.config/dev/seed/<alias>/ (mirrors the repo layout).
+function seedWorktree(alias, worktreePath) {
+  const seedDir = path.join(os.homedir(), ".config", "dev", "seed", alias);
+  if (!alias || !fs.existsSync(seedDir)) return 0;
+  let n = 0;
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const from = path.join(dir, e.name);
+      const rel = path.relative(seedDir, from);
+      const to = path.join(worktreePath, rel);
+      if (e.isDirectory()) { walk(from); continue; }
+      if (fs.existsSync(to)) continue;
+      fs.mkdirSync(path.dirname(to), { recursive: true });
+      fs.copyFileSync(from, to);
+      n += 1;
+    }
+  };
+  walk(seedDir);
+  if (n) console.log(`seed: copied ${n} file(s) from ${seedDir}`);
+  return n;
+}
+
+function bootstrapWorktree(worktreePath, alias = "") {
   const resolved = path.resolve(worktreePath);
+  seedWorktree(alias, resolved);
 
   if (fs.existsSync(path.join(resolved, ".par.yaml"))) {
     console.log(`bootstrap: ${resolved} has .par.yaml, skipping generic bootstrap`);
@@ -941,7 +994,7 @@ function createOrOpenSingleRepoContext(alias, task, repo) {
   ]);
   const workspaceId = created.result.workspace.workspace_id;
 
-  bootstrapWorktree(worktreePath);
+  bootstrapWorktree(worktreePath, alias);
   ensureTabs(workspaceId, worktreePath, [], branch);
   focusWorkspace(workspaceId);
 }
@@ -1043,6 +1096,9 @@ function currentContext() {
 }
 
 function focusWorkspace(workspaceId) {
+  if (process.env.DEV_NO_FOCUS) {
+    return; // orchestration: create contexts without stealing the user's focus
+  }
   runCapture("herdr", ["workspace", "focus", workspaceId]);
 }
 
