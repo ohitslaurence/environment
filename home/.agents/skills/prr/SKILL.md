@@ -3,7 +3,7 @@ name: prr
 description: Deep PR review focused on craft, architecture, testing, and clarity. Complements automated bug-finding tools like Greptile by focusing on maintainability and code quality.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
-allowed-tools: Agent, Bash(gh *), Bash(git *), Read, Grep, Glob
+allowed-tools: Agent, Bash(gh *), Bash(git *), Bash(dev *), Read, Grep, Glob
 ---
 
 # PR Review — Craft & Quality
@@ -34,9 +34,9 @@ gh api repos/<owner>/<repo>/issues/<number>/comments
 gh api repos/<owner>/<repo>/pulls/<number>/comments
 ```
 
-Checkout the PR branch:
+Open the PR in its own worktree (never `gh pr checkout`: canonical clones are bare and must stay untouched). This prints the worktree path; `cd` into it for everything that follows:
 ```bash
-gh pr checkout <number> --repo <owner/repo>
+dev pr-checkout <number> --repo <repo-alias>
 ```
 
 ## Step 2: Understand the PR
@@ -49,7 +49,7 @@ Spawn four agents in parallel with the Agent tool, one per lens below. Build eac
 
 1. The shared preamble:
 
-   > You are reviewing PR #<number> in <owner>/<repo> for **<lens>**. The PR branch is already checked out in this working directory; do not run `gh pr checkout`. Read the diff (`gh pr diff <number> --repo <owner/repo>`) and the surrounding source. Before posting, read existing comments (`gh api repos/<owner>/<repo>/pulls/<number>/comments`) and skip anything already raised by `greptile-apps[bot]`, humans, or comments containing `<!-- automated-pr-review -->`. Post inline comments in the Comment Format below. Only post findings genuinely worth raising.
+   > You are reviewing PR #<number> in <owner>/<repo> for **<lens>**. The PR is checked out in this working directory (a `dev` worktree); do not run `gh pr checkout` or change branches. Read the diff (`gh pr diff <number> --repo <owner/repo>`) and the surrounding source. Before posting, read existing comments (`gh api repos/<owner>/<repo>/pulls/<number>/comments`) and skip anything already raised by `greptile-apps[bot]`, humans, or comments containing `<!-- automated-pr-review -->`. Post inline comments in the Comment Format below. Only post findings genuinely worth raising.
 
 2. The lens-specific "Look for" list.
 3. The full **Comment Format** section, including Calibration.

@@ -3,7 +3,7 @@ name: prc
 description: Process automated PR review comments (Greptile, Strix security agent, and /prr skill), fix valid findings, react to train reviewers, and do a final pass on the diff.
 disable-model-invocation: true
 argument-hint: <pr-url-or-number>
-allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Read, Edit, Write, Grep, Glob
+allowed-tools: Bash(gh *), Bash(git *), Bash(gritty *), Bash(dev *), Read, Edit, Write, Grep, Glob
 ---
 
 # PR Review Cleanup
@@ -52,9 +52,9 @@ gh api repos/<owner>/<repo>/pulls/<number>/comments
 
 **Only process comments from `greptile-apps[bot]`, the Strix bot account (login containing `strix`), or those containing `<!-- automated-pr-review -->`.** Ignore all other comments.
 
-Checkout the PR branch locally so you can read and edit the actual code:
+Open the PR in its own worktree so you can read and edit the code (never `gh pr checkout`: canonical clones are bare and must stay untouched). This prints the worktree path; `cd` into it for everything that follows, including commits and pushes:
 ```bash
-gh pr checkout <number> --repo <owner/repo>
+dev pr-checkout <number> --repo <repo-alias>
 ```
 
 ## Step 2: Understand the PR

@@ -66,6 +66,10 @@ async function main() {
       requireCommand("gritty");
       runInherit("gritty", ["commit", "--accept"]);
       return;
+    case "pr-checkout":
+    case "prco":
+      cmdPrCheckout(rest);
+      return;
     case "pr":
       requireInsideGitRepo("dev pr");
       requireCommand("gritty");
@@ -97,11 +101,12 @@ Usage:
   dev repos [--json]
   dev sync
   dev refresh [repo]
-  dev prune [--dry-run]
+  dev prune [--dry-run] [--all]
   dev bootstrap
   dev save
   dev pr
-  dev done [label] [--force]
+  dev pr-checkout <number> [--repo alias]   (alias: prco)
+  dev done [label] [--force] [--keep-branch]
 
 Config:
   Repos are discovered by scanning $DEV_REPOS_DIR (default: the parent
@@ -110,7 +115,11 @@ Config:
   alias<TAB>path<TAB>default_branch
 
 Labels use repo${LABEL_SEP}task format (e.g. rain${LABEL_SEP}fix-auth); cross contexts use the bare task.
-Worktrees live beside the repo as <repo>-wt-<task>.
+Worktrees live beside the repo as <repo>-wt-<task>; PR reviews as <repo>-wt-pr-<n>.
+Canonical clones are bare (no working tree): all work happens in worktrees.
+'dev done' deletes the branch once it is merged; 'dev prune' reconciles
+worktrees, branches, and herdr workspaces (fast path runs on every dashboard,
+'--all' also asks GitHub which PRs merged).
 
 (The dev shell function falls back to 'cd $DEV_HOME/<arg>' for anything
 that is not a subcommand or configured repo alias.)
@@ -121,6 +130,7 @@ async function cmdDashboard() {
   requireCommand("herdr");
 
   const repos = loadRepos();
+  quietPrune(repos);
   const contexts = listContexts();
 
   if (contexts.length === 0) {
@@ -294,10 +304,96 @@ function cmdCross(rest) {
     bootstrapWorktree(worktreePathFor(repo));
   }
 
-  ensureTabs(workspaceId, worktreePathFor(primary), [
-    ...others.map((repo) => ({ name: repo.alias, cwd: worktreePathFor(repo) })),
-  ]);
+  ensureTabs(
+    workspaceId,
+    worktreePathFor(primary),
+    others.map((repo) => ({ name: repo.alias, cwd: worktreePathFor(repo) })),
+    task,
+  );
   focusWorkspace(workspaceId);
+}
+
+// Review a PR in its own worktree instead of `gh pr checkout` (which would
+// switch whatever checkout the caller happens to be in, usually canonical).
+function cmdPrCheckout(rest) {
+  requireCommand("herdr");
+  requireCommand("gh");
+  requireCommand("git");
+
+  const number = rest.find((arg) => /^\d+$/.test(arg));
+  if (!number) {
+    fail("Usage: dev pr-checkout <number> [--repo alias]");
+  }
+  const repos = loadRepos();
+  const repoFlag = rest.indexOf("--repo");
+  const alias = repoFlag >= 0 ? rest[repoFlag + 1] : inferCurrentRepoAlias();
+  const repo = repos[alias];
+  if (!repo) {
+    fail(`Unknown repo '${alias}'.`);
+  }
+
+  const view = runCapture(
+    "gh",
+    ["pr", "view", number, "--json", "headRefName,headRepositoryOwner,isCrossRepository"],
+    { cwd: repo.path },
+  );
+  const pr = JSON.parse(view.stdout);
+  if (pr.isCrossRepository) {
+    fail(`PR #${number} comes from a fork; review it manually.`);
+  }
+  const branch = pr.headRefName;
+  const worktreePath = `${repo.path}-wt-pr-${number}`;
+  const label = `pr-${number}`;
+
+  const existing = listContexts().find((ctx) =>
+    samePath(ctx.worktree.checkout_path, worktreePath),
+  );
+  if (existing) {
+    focusWorkspace(existing.workspace_id);
+    return;
+  }
+
+  // The PR branch may already be checked out as the author's own context.
+  const checkedOutAt = worktreeForBranch(repo, branch);
+  if (checkedOutAt) {
+    const ctx = listContexts().find((c) => samePath(c.worktree.checkout_path, checkedOutAt));
+    if (ctx) {
+      console.log(`dev: PR #${number} branch ${branch} is already open as ${ctx.label}`);
+      focusWorkspace(ctx.workspace_id);
+      return;
+    }
+    fail(`Branch ${branch} is checked out at ${checkedOutAt}; open that instead.`);
+  }
+
+  runInherit("git", ["-C", repo.path, "fetch", "origin", branch]);
+  if (localBranchExists(repo.path, branch)) {
+    runInherit("git", ["-C", repo.path, "worktree", "add", worktreePath, branch]);
+  } else {
+    runInherit("git", [
+      "-C", repo.path, "worktree", "add", "--track", "-b", branch, worktreePath, `origin/${branch}`,
+    ]);
+  }
+  const opened = herdrJson([
+    "worktree", "open", "--cwd", repo.path, "--path", worktreePath, "--label", label, "--no-focus", "--json",
+  ]);
+  const workspaceId = opened.result.workspace.workspace_id;
+  bootstrapWorktree(worktreePath);
+  ensureTabs(workspaceId, worktreePath, [], `${alias}${LABEL_SEP}${label}`);
+  focusWorkspace(workspaceId);
+  console.log(worktreePath);
+}
+
+function worktreeForBranch(repo, branch) {
+  const listing = runCapture("git", ["-C", repo.path, "worktree", "list", "--porcelain"], { check: false }).stdout;
+  for (const block of listing.split("\n\n")) {
+    if (block.includes(`\nbranch refs/heads/${branch}\n`) || block.endsWith(`\nbranch refs/heads/${branch}`)) {
+      const m = block.match(/^worktree (.+)$/m);
+      if (m) {
+        return m[1];
+      }
+    }
+  }
+  return "";
 }
 
 function addGitWorktree(repo, branch, worktreePath) {
@@ -322,6 +418,7 @@ function cmdDone(rest) {
   requireCommand("herdr");
 
   const force = rest.includes("--force") || rest.includes("-f");
+  const keepBranch = rest.includes("--keep-branch");
   const labelArg = rest.find((arg) => !arg.startsWith("-"));
   const repos = loadRepos();
 
@@ -385,7 +482,12 @@ function cmdDone(rest) {
     }
   }
 
-  console.log(`dev: removing ${primaryPath} (branch ${branch} kept)`);
+  const repoRoot = ctx.worktree.repo_root;
+  const repo = repos[aliasForRepoRoot(repoRoot, repos)] || { path: repoRoot, base: "main" };
+  const merged = !keepBranch && branchIsMerged(repo, branch, { askGitHub: true });
+  console.log(
+    `dev: removing ${primaryPath} (branch ${branch} ${merged ? "merged, deleting" : "kept"})`,
+  );
   runCapture("herdr", [
     "worktree",
     "remove",
@@ -393,6 +495,56 @@ function cmdDone(rest) {
     ctx.workspace_id,
     ...(force ? ["--force"] : []),
   ]);
+  if (merged) {
+    runQuiet("git", ["-C", repo.path, "branch", "-D", branch]);
+  }
+}
+
+// A branch is finished when origin/<base> already contains it (merge or
+// rebase) or, with askGitHub, when its PR is merged or closed (squash merges
+// leave no ancestry, so git alone cannot tell).
+function branchIsMerged(repo, branch, { askGitHub = false, prIndex } = {}) {
+  if (!branch || branch === repo.base) {
+    return false;
+  }
+  const ancestor = runCapture(
+    "git",
+    ["-C", repo.path, "merge-base", "--is-ancestor", branch, baseRef(repo)],
+    { check: false },
+  );
+  if (ancestor.status === 0) {
+    return true;
+  }
+  if (!askGitHub || !hasCommand("gh")) {
+    return false;
+  }
+  const index = prIndex || loadPrIndex(repo);
+  const state = index.get(branch);
+  return state === "MERGED" || state === "CLOSED";
+}
+
+// One GitHub call per repo: head branch -> PR state for recent PRs.
+function loadPrIndex(repo) {
+  const index = new Map();
+  const result = runCapture(
+    "gh",
+    ["pr", "list", "--state", "all", "--limit", "300", "--json", "headRefName,state"],
+    { check: false, cwd: repo.path },
+  );
+  if (result.status !== 0) {
+    return index;
+  }
+  try {
+    for (const pr of JSON.parse(result.stdout)) {
+      // Newest first; keep the first (latest) state seen per branch.
+      if (!index.has(pr.headRefName)) {
+        index.set(pr.headRefName, pr.state);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return index;
 }
 
 // Worktrees leak whenever a herdr workspace dies without `dev done` (closed
@@ -407,30 +559,171 @@ function cmdPrune(rest) {
   requireCommand("herdr");
 
   const dryRun = rest.includes("--dry-run") || rest.includes("-n");
+  const all = rest.includes("--all");
   const repos = loadRepos();
-  const contexts = listContexts();
-  const stale = findStaleWorktrees(repos, contexts);
+  const summary = prune(repos, { dryRun, askGitHub: all, verbose: true });
+  console.log(
+    `prune: ${summary.worktrees} worktree${summary.worktrees === 1 ? "" : "s"}, ` +
+      `${summary.branches} branch${summary.branches === 1 ? "" : "es"}, ` +
+      `${summary.workspaces} workspace${summary.workspaces === 1 ? "" : "s"} ` +
+      `${dryRun ? "would be" : ""} removed; ${summary.skipped} dirty skipped`,
+  );
+}
 
-  let removed = 0;
-  let skipped = 0;
-  for (const { repo, path: wtPath, dirty } of stale) {
-    if (dirty) {
-      console.log(`prune: skipping ${wtPath} (uncommitted changes)`);
-      skipped += 1;
+// Fast reconcile used by the dashboard: no GitHub calls, never noisy.
+function quietPrune(repos) {
+  try {
+    const summary = prune(repos, { dryRun: false, askGitHub: false, verbose: false });
+    const total = summary.worktrees + summary.branches + summary.workspaces;
+    if (total > 0) {
+      console.log(
+        `dev: pruned ${summary.worktrees} worktrees, ${summary.branches} branches, ${summary.workspaces} workspaces`,
+      );
+    }
+  } catch {
+    /* never block the dashboard */
+  }
+}
+
+// Reconcile three registries that drift apart: git worktrees on disk, local
+// branches, and herdr workspaces.
+//  1. Stale worktrees (no live context) that are clean are removed.
+//  2. dev-created branches (<alias>__* or pr-*) not checked out anywhere and
+//     merged/closed are deleted.
+//  3. herdr workspaces whose checkout no longer exists are closed. Workspaces
+//     with no agent whose branch is merged are closed and their worktree
+//     removed (only when clean).
+// Dirty checkouts are reported and left alone. Workspaces with a live agent
+// are never touched.
+function prune(repos, { dryRun, askGitHub, verbose }) {
+  const summary = { worktrees: 0, branches: 0, workspaces: 0, skipped: 0 };
+  const log = (msg) => verbose && console.log(msg);
+  const contexts = listContexts();
+  const liveWorkspaces = new Set(listAgentWorkspaces());
+  const prIndexes = new Map();
+  const prIndexFor = (repo) => {
+    if (!askGitHub) {
+      return undefined;
+    }
+    if (!prIndexes.has(repo.path)) {
+      prIndexes.set(repo.path, loadPrIndex(repo));
+    }
+    return prIndexes.get(repo.path);
+  };
+
+  // 3a. Workspaces pointing at a checkout that is gone.
+  for (const ctx of contexts) {
+    if (liveWorkspaces.has(ctx.workspace_id)) {
       continue;
     }
-    if (dryRun) {
-      console.log(`prune: would remove ${wtPath}`);
-      removed += 1;
-      continue;
+    if (!fs.existsSync(ctx.worktree.checkout_path)) {
+      log(`prune: closing workspace ${ctx.label} (checkout missing)`);
+      if (!dryRun) {
+        runQuiet("herdr", ["workspace", "close", ctx.workspace_id]);
+      }
+      summary.workspaces += 1;
     }
-    console.log(`prune: removing ${wtPath} (branch kept)`);
-    runInherit("git", ["-C", repo.path, "worktree", "remove", wtPath]);
-    removed += 1;
   }
 
-  console.log(
-    `prune: ${removed} ${dryRun ? "stale" : "removed"}, ${skipped} skipped`,
+  // 3b. Idle workspaces whose branch is finished.
+  for (const ctx of contexts) {
+    if (liveWorkspaces.has(ctx.workspace_id) || !fs.existsSync(ctx.worktree.checkout_path)) {
+      continue;
+    }
+    const alias = aliasForRepoRoot(ctx.worktree.repo_root, repos);
+    const repo = repos[alias];
+    if (!repo) {
+      continue;
+    }
+    const checkout = ctx.worktree.checkout_path;
+    const branch = currentBranchName(checkout);
+    if (!branchIsMerged(repo, branch, { askGitHub, prIndex: prIndexFor(repo) })) {
+      continue;
+    }
+    if (isDirty(checkout)) {
+      log(`prune: skipping ${checkout} (merged but has uncommitted changes)`);
+      summary.skipped += 1;
+      continue;
+    }
+    log(`prune: closing workspace ${ctx.label} and removing ${checkout} (branch ${branch} merged)`);
+    if (!dryRun) {
+      runCapture("herdr", ["worktree", "remove", "--workspace", ctx.workspace_id], { check: false });
+      if (fs.existsSync(checkout)) {
+        runQuiet("git", ["-C", repo.path, "worktree", "remove", checkout]);
+      }
+      runQuiet("git", ["-C", repo.path, "branch", "-D", branch]);
+    }
+    summary.workspaces += 1;
+    summary.worktrees += 1;
+    summary.branches += 1;
+  }
+
+  // 1. Stale worktrees on disk.
+  const stale = findStaleWorktrees(repos, listContexts());
+  for (const { repo, path: wtPath, dirty } of stale) {
+    if (dirty) {
+      log(`prune: skipping ${wtPath} (uncommitted changes)`);
+      summary.skipped += 1;
+      continue;
+    }
+    const branch = currentBranchName(wtPath);
+    log(`prune: removing ${wtPath}`);
+    if (!dryRun) {
+      runQuiet("git", ["-C", repo.path, "worktree", "remove", wtPath]);
+    }
+    summary.worktrees += 1;
+    if (branch && branchIsMerged(repo, branch, { askGitHub, prIndex: prIndexFor(repo) })) {
+      log(`prune: deleting merged branch ${branch}`);
+      if (!dryRun) {
+        runQuiet("git", ["-C", repo.path, "branch", "-D", branch]);
+      }
+      summary.branches += 1;
+    }
+  }
+
+  // 2. Orphan dev branches (not checked out anywhere) that are finished.
+  for (const [alias, repo] of Object.entries(repos)) {
+    const checkedOut = new Set(
+      runCapture("git", ["-C", repo.path, "worktree", "list", "--porcelain"], { check: false })
+        .stdout.split("\n")
+        .filter((line) => line.startsWith("branch refs/heads/"))
+        .map((line) => line.slice("branch refs/heads/".length)),
+    );
+    const branches = runCapture(
+      "git",
+      ["-C", repo.path, "for-each-ref", "--format=%(refname:short)", "refs/heads/"],
+      { check: false },
+    ).stdout.split("\n").filter(Boolean);
+    for (const branch of branches) {
+      const devOwned = branch.startsWith(`${alias}${LABEL_SEP}`) || branch.startsWith("pr-");
+      if (!devOwned || checkedOut.has(branch) || branch === repo.base) {
+        continue;
+      }
+      if (!branchIsMerged(repo, branch, { askGitHub, prIndex: prIndexFor(repo) })) {
+        continue;
+      }
+      log(`prune: deleting merged branch ${alias}:${branch}`);
+      if (!dryRun) {
+        runQuiet("git", ["-C", repo.path, "branch", "-D", branch]);
+      }
+      summary.branches += 1;
+    }
+  }
+
+  return summary;
+}
+
+function listAgentWorkspaces() {
+  try {
+    return herdrJson(["agent", "list"]).result.agents.map((a) => a.workspace_id);
+  } catch {
+    return [];
+  }
+}
+
+function isDirty(checkout) {
+  return Boolean(
+    runCapture("git", ["-C", checkout, "status", "--porcelain"], { check: false }).stdout.trim(),
   );
 }
 
@@ -609,7 +902,7 @@ function createOrOpenSingleRepoContext(alias, task, repo) {
       "--json",
     ]);
     const workspaceId = opened.result.workspace.workspace_id;
-    ensureTabs(workspaceId, worktreePath);
+    ensureTabs(workspaceId, worktreePath, [], branch);
     focusWorkspace(workspaceId);
     return;
   }
@@ -634,11 +927,11 @@ function createOrOpenSingleRepoContext(alias, task, repo) {
   const workspaceId = created.result.workspace.workspace_id;
 
   bootstrapWorktree(worktreePath);
-  ensureTabs(workspaceId, worktreePath);
+  ensureTabs(workspaceId, worktreePath, [], branch);
   focusWorkspace(workspaceId);
 }
 
-function ensureTabs(workspaceId, defaultCwd, extraTabs = []) {
+function ensureTabs(workspaceId, defaultCwd, extraTabs = [], paneName = "") {
   const tabs = herdrJson(["tab", "list", "--workspace", workspaceId]).result.tabs;
   if (tabs.length === 0) {
     return;
@@ -660,17 +953,20 @@ function ensureTabs(workspaceId, defaultCwd, extraTabs = []) {
     if (labels.has(name)) {
       continue;
     }
-    runQuiet("herdr", [
-      "tab",
-      "create",
-      "--workspace",
-      workspaceId,
-      "--label",
-      name,
-      "--cwd",
-      cwd,
-      "--no-focus",
-    ]);
+    const created = runCapture(
+      "herdr",
+      ["tab", "create", "--workspace", workspaceId, "--label", name, "--cwd", cwd, "--no-focus", "--json"],
+      { check: false },
+    );
+    // Name the agent pane after the context so the agents panel reads the task.
+    if (name === "agent" && paneName && created.status === 0) {
+      try {
+        const paneId = JSON.parse(created.stdout).result.root_pane.pane_id;
+        runQuiet("herdr", ["pane", "rename", paneId, paneName]);
+      } catch {
+        /* cosmetic */
+      }
+    }
   }
 }
 
@@ -761,6 +1057,12 @@ function baseRef(repo) {
 function refreshCanonicalRepo(alias, repo) {
   requireCommand("git");
 
+  if (isBare(repo.path)) {
+    // Bare canonical: no working tree to switch; just move the base ref.
+    runInherit("git", ["-C", repo.path, "fetch", "origin", `${repo.base}:${repo.base}`]);
+    return;
+  }
+
   assertClean(
     repo.path,
     `Canonical clone ${alias} is dirty. Clean it before branching from ${repo.base}.`,
@@ -783,6 +1085,13 @@ function refreshCanonicalRepo(alias, repo) {
   }
 
   runInherit("git", ["-C", repo.path, "pull", "--ff-only", "origin", repo.base]);
+}
+
+function isBare(repoPath) {
+  return (
+    runCapture("git", ["-C", repoPath, "rev-parse", "--is-bare-repository"], { check: false })
+      .stdout.trim() === "true"
+  );
 }
 
 function localBranchExists(repoPath, branch) {
