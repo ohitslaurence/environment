@@ -26,7 +26,6 @@ MSG
 cat <<'MSG'
 
 Per-machine (never synced):
-  claude mcp add -s user --transport http nia https://apigcp.trynia.ai/mcp \
-    --header "Authorization: Bearer $NIA_API_KEY"      # NIA_API_KEY from ~/.zshrc.local
-  gh auth login && claude   # log in
+  gh auth login && claude                      # log in
+  claude mcp add -s user ...                   # MCP servers that need keys (keys in ~/.zshrc.local)
 MSG

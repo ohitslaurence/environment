@@ -40,7 +40,7 @@ git clone https://github.com/ohitslaurence/environment.git ~/dev/environment   #
 `~/.config/opencode`, `~/.config/mise`. Runtime state (sessions, credentials, history) stays in
 real directories; only tracked config is symlinked into the repo.
 
-Per machine, never synced: `claude mcp add ... nia` (token from `~/.zshrc.local`), `gh auth login`.
+Per machine, never synced: `gh auth login`, `claude` login, MCP servers that need keys (`claude mcp add -s user ...`).
 
 ### Keeping machines in sync
 
@@ -63,7 +63,6 @@ Tested on Ubuntu 24.04 (Server / Cloud / Desktop). Plan ~30 min: most of it is a
 - **Tailscale account** — sign up at tailscale.com (free for personal). Decide what hostname you want this machine to be.
 - **GitHub account** — you'll authenticate via browser
 - **AWS SSO start URL + region** (only if you use AWS — `https://<org>.awsapps.com/start`)
-- **Nia API key** (optional — only if you use Nia CLI; create at trynia.ai)
 
 ### 1. Bootstrap
 
@@ -96,7 +95,6 @@ You'll hit these prompts in order — keep a browser handy:
 | `gh_auth` | Browser opens for GitHub CLI login (HTTPS, with `admin:public_key` scope) |
 | `github_ssh` | Generates a new SSH key → offers to upload to GitHub via gh (say yes) |
 | `aws_sso` | Enter SSO URL + region + profile name → run `aws sso login` after |
-| `nia` | Installs CLI only — you'll run `nia auth login` separately if needed |
 
 Progress is saved to `~/.config/vps-setup/state.json` — interrupt anytime and re-running picks up where you left off.
 
@@ -109,8 +107,6 @@ exit  # then SSH back in
 # Authenticate AWS SSO (if you set it up)
 aws sso login --profile <your-profile>
 
-# Authenticate Nia CLI (if you use Nia)
-nia auth login
 
 # Add your GPG public key to GitHub for verified commits
 # (printed during the dotfiles step; also: gpg --armor --export <KEY_ID>)
@@ -146,7 +142,7 @@ bash steps/<name>.sh   # run one directly
 | **Modern CLI** | eza, bat, zoxide, fzf, direnv |
 | **TUI** | lazygit, lazydocker, htop, neovim |
 | **Runtime** | Docker, Node.js (fnm), Bun, pnpm |
-| **AI** | Claude Code, OpenCode, Codex, Nia CLI |
+| **AI** | Claude Code, OpenCode, Codex |
 | **Sync** | Syncthing (file sync to laptop) |
 | **Shell** | zsh, tmux with persistence |
 | **Git** | GPG commit signing, GitHub CLI |
@@ -220,7 +216,7 @@ Configs are version controlled but **secrets stay local**. The pattern:
 - Tracked configs in `home/` contain no secrets — stow symlinks them to `~`
 - `~/.claude/settings.json` and `~/.config/opencode/opencode.json` are gitignored. They're seeded from `*.template` on first run, then you can add machine-specific MCP servers / API keys without leaking to the repo.
 - Long-lived shell secrets go in `~/.zshrc.local` (sourced by `.zshrc`, not in git)
-- AI CLIs handle their own auth: `claude` (browser), `nia auth login` (browser), `codex` (browser), `gh auth login` (browser)
+- AI CLIs handle their own auth: `claude` (browser), `codex` (browser), `gh auth login` (browser)
 
 ## Credits
 

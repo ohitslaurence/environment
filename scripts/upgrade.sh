@@ -54,13 +54,6 @@ if command -v skills &> /dev/null || command -v npx &> /dev/null; then
     upgrade_tool "Agent skills" "cd ~/.agents && npx -y skills update -g -y"
 fi
 
-# Nia CLI (installed via bun global)
-if command -v nia &> /dev/null; then
-    upgrade_tool "Nia" "bun update -g @nozomioai/nia"
-else
-    results+=("${YELLOW}○${NC} Nia (not installed)")
-fi
-
 # Gritty (AI-powered Git CLI)
 if command -v gritty &> /dev/null; then
     upgrade_tool "Gritty" "cd \${DEV_HOME:-~/dev}/personal/gritty && git pull && bun install && bun run build"
