@@ -74,16 +74,28 @@
   },
   "extraKnownMarketplaces": {
     "notion-plugin-marketplace": {
-      "source": { "source": "github", "repo": "makenotion/claude-code-notion-plugin" }
+      "source": {
+        "source": "github",
+        "repo": "makenotion/claude-code-notion-plugin"
+      }
     },
     "callstack-agent-skills": {
-      "source": { "source": "github", "repo": "callstackincubator/agent-skills" }
+      "source": {
+        "source": "github",
+        "repo": "callstackincubator/agent-skills"
+      }
     },
     "expo-plugins": {
-      "source": { "source": "github", "repo": "expo/skills" }
+      "source": {
+        "source": "github",
+        "repo": "expo/skills"
+      }
     },
     "impeccable": {
-      "source": { "source": "github", "repo": "pbakaus/impeccable" }
+      "source": {
+        "source": "github",
+        "repo": "pbakaus/impeccable"
+      }
     }
   },
   "tui": "fullscreen",
