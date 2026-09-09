@@ -2,14 +2,16 @@
 # Executor (executor.sh): one MCP endpoint in front of every integration.
 # Self-hosted Docker on this box, bound to the Tailscale IP only (Docker's
 # published ports bypass UFW, so 0.0.0.0 would expose it on the public IP).
-# Web UI + MCP: http://<this-host>:4788  (MagicDNS name, e.g. http://gondor:4788)
+# Web UI + MCP: https://<host>.<tailnet>.ts.net  (Tailscale Serve -> container on the TS IP)
 set -euo pipefail
 
 command -v docker >/dev/null || { echo "docker required (run the docker step)"; exit 1; }
 TS_IP="$(tailscale ip -4 2>/dev/null | head -1)"
 [[ -n "$TS_IP" ]] || { echo "tailscale not up"; exit 1; }
-HOST_SHORT="$(hostname -s)"
-BASE_URL="${EXECUTOR_WEB_BASE_URL:-http://${HOST_SHORT}:4788}"
+# HTTPS via Tailscale Serve (Claude Code refuses OAuth over plain http off-localhost):
+#   sudo tailscale set --operator=$USER && tailscale serve --bg --https=443 http://$TS_IP:4788
+TS_FQDN="$(tailscale status --json 2>/dev/null | python3 -c "import json,sys;print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))")"
+BASE_URL="${EXECUTOR_WEB_BASE_URL:-https://${TS_FQDN}}"
 
 ENV_FILE="$HOME/.config/executor/admin.env"
 mkdir -p "$(dirname "$ENV_FILE")"
