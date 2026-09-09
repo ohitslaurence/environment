@@ -23,21 +23,27 @@ link() { # link <target-in-repo> <path-in-home>
 
 echo "apply: $REPO"
 
-# ── ~/.claude (real dir) ────────────────────────────────────────────────────
-# Migration: an older stow layout folded ~/.claude into a symlink to the repo, so
-# runtime state (sessions, credentials, history) lived inside the checkout. Unfold it:
-# keep tracked entries in the repo, move everything else to a real ~/.claude.
-if [[ -L ~/.claude ]]; then
-  target="$(cd -P ~/.claude && pwd)"
-  echo "  unfold  ~/.claude (was -> $target)"
-  rm ~/.claude && mkdir ~/.claude
+# unfold <home-dir> <tracked entries...>
+# An older stow layout folded whole dirs (~/.claude, ~/.config/opencode) into symlinks to the
+# repo, so runtime state (sessions, credentials, node_modules) lived inside the checkout.
+# Turn the symlink back into a real dir: tracked entries stay in the repo, all else moves out.
+unfold() {
+  local dir="$1"; shift
+  [[ -L "$dir" ]] || return 0
+  local target; target="$(cd -P "$dir" && pwd)"
+  echo "  unfold  $dir (was -> $target)"
+  rm "$dir" && mkdir -p "$dir"
+  local e n keep
   for e in "$target"/.[!.]* "$target"/*; do
     [[ -e "$e" || -L "$e" ]] || continue
-    n="$(basename "$e")"
-    case "$n" in CLAUDE.md|settings.json|hooks|commands) continue ;; esac
-    mv "$e" ~/.claude/"$n"
+    n="$(basename "$e")"; keep=0
+    for k in "$@"; do [[ "$n" == "$k" ]] && keep=1; done
+    [[ $keep == 1 ]] || mv "$e" "$dir/$n"
   done
-fi
+}
+
+# ── ~/.claude (real dir) ────────────────────────────────────────────────────
+unfold ~/.claude CLAUDE.md settings.json hooks commands
 # Runtime junk that older hook versions wrote next to their source
 [[ -L "$H/.claude/hooks/hooks" ]] && rm "$H/.claude/hooks/hooks"
 mkdir -p ~/.claude/skills ~/.claude/state
@@ -78,6 +84,7 @@ echo "  skills  $(ls "$H/.agents/skills" | wc -l | tr -d ' ') linked into ~/.cla
 
 # ── Codex / OpenCode instructions ───────────────────────────────────────────
 link ~/.claude/CLAUDE.md ~/.codex/AGENTS.md
+unfold ~/.config/opencode opencode.json
 mkdir -p ~/.config/opencode
 link ~/.claude/CLAUDE.md               ~/.config/opencode/AGENTS.md
 link "$H/.config/opencode/opencode.json" ~/.config/opencode/opencode.json
