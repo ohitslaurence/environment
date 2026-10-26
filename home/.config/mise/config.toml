@@ -7,7 +7,6 @@ gh = "latest"
 uv = "latest"
 jq = "latest"
 "npm:@openai/codex" = "latest"
-"npm:@owloops/claude-powerline" = "latest"
 "npm:skills" = "latest"
 
 [settings]
