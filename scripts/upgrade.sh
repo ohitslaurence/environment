@@ -42,7 +42,7 @@ else
     results+=("${YELLOW}○${NC} OpenCode (not installed)")
 fi
 
-# mise-managed tools: node, bun, gh, uv, jq, codex, claude-powerline, skills CLI
+# mise-managed tools: node, bun, gh, uv, jq, codex, skills CLI
 if command -v mise &> /dev/null; then
     upgrade_tool "mise tools" "mise upgrade --yes"
 else

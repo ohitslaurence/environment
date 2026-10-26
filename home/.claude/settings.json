@@ -62,10 +62,6 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "claude-powerline --style=powerline --theme=tokyo-night"
-  },
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
