@@ -309,6 +309,10 @@ export PATH="/home/laurence/.strix/bin:$PATH"
 
 . "$HOME/.local/bin/env"
 
+# Agent shells (Claude Code snapshots) load the cd wrapper without the hook, so the
+# doctor warning lands in every command's output.
+export _ZO_DOCTOR=0
+
 # zoxide (smarter cd) - must be last per `zoxide doctor`
 if command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"

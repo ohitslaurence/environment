@@ -1,5 +1,8 @@
 {
   "model": "fable",
+  "env": {
+    "_ZO_DOCTOR": "0"
+  },
   "effortLevel": "high",
   "permissions": {
     "allow": [
