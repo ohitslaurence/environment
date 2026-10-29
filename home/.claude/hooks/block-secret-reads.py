@@ -49,8 +49,15 @@ RULES: list[tuple[re.Pattern[str], str]] = [
         "GitHub Actions secret names/values",
     ),
     (
-        re.compile(r"\b(printenv|env)\b(?!\s*\|)\s*$"),
+        # Only as a command word: a path ending in `/env` (`ls ~/.config/x/env`)
+        # is not a dump of the environment.
+        re.compile(r"(?:^|[;&|(\n])\s*(printenv|env)\s*$"),
         "the full environment, which usually carries credentials",
+    ),
+    (
+        # Key names only (`cut -d= -f1`, `grep -o '^[A-Z_]*='`) stay allowed.
+        re.compile(r"\b(cat|bat|batcat|less|more|head|tail)\s+[^|;&\n>]*(/env|\.env)(?![\w.-])"),
+        "a credentials env file",
     ),
 ]
 
